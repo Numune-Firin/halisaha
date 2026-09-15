@@ -1,0 +1,21 @@
+# Ortam degiskenleri - asla commit edilmez
+.env
+.env.*
+!.env.example
+
+# Bagimliliklar ve build ciktilari
+node_modules/
+.next/
+out/
+dist/
+build/
+.vercel/
+
+# Editor / isletim sistemi
+.DS_Store
+Thumbs.db
+*.log
+
+# Bu projeye ait olmayan mevcut dosyalar
+*.pdf
+docker-compose.yml
