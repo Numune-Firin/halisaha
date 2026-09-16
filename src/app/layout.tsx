@@ -1,13 +1,13 @@
 import "./globals.css";
 
 export const metadata = {
-  title: 'Halı Saha',
-  description: 'Haftalık halı saha organizasyonu',
+  title: 'Numune Fırın Futbol Ligi',
+  description: 'Haftalık halı saha anketi, kadro ve puan durumu',
   manifest: '/manifest.json',
 };
 
 export const viewport = {
-  themeColor: '#111111',
+  themeColor: '#04120c',
   width: 'device-width',
   initialScale: 1,
 };
@@ -19,7 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr">
-      <body>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

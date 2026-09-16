@@ -1,1 +1,279 @@
 @import "tailwindcss";
+
+/* --------------------------------------------------------------------------
+   Tasarim belirtecleri. Renk paleti sahadan gelir: koyu cim zemin, krem
+   (logodaki bugday tonu) vurgu, altin sari aksiyon rengi.
+   -------------------------------------------------------------------------- */
+@theme {
+  --color-pitch-950: #04120c;
+  --color-pitch-900: #071a12;
+  --color-pitch-800: #0c261a;
+  --color-pitch-700: #124029;
+  --color-pitch-600: #1a5c3a;
+  --color-pitch-500: #22c55e;
+
+  --color-cream-100: #f6efe1;
+  --color-cream-200: #e8dcc2;
+  --color-cream-400: #c9b285;
+
+  --color-gold-400: #f0b429;
+  --color-gold-500: #d69412;
+
+  --color-ink-100: #e9f1ea;
+  --color-ink-300: #a9bdb0;
+  --color-ink-500: #6f8578;
+
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", sans-serif;
+}
+
+:root {
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-strong: rgba(255, 255, 255, 0.08);
+  --line: rgba(233, 241, 234, 0.12);
+  --line-strong: rgba(233, 241, 234, 0.22);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  color: var(--color-ink-100);
+  font-family: var(--font-sans);
+  background-color: var(--color-pitch-950);
+  /* Sahanin bicilmis cim seritleri + kose isiklari */
+  background-image:
+    radial-gradient(1100px 520px at 12% -10%, rgba(34, 197, 94, 0.16), transparent 60%),
+    radial-gradient(900px 480px at 92% 0%, rgba(240, 180, 41, 0.1), transparent 60%),
+    repeating-linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.017) 0px,
+      rgba(255, 255, 255, 0.017) 58px,
+      transparent 58px,
+      transparent 116px
+    );
+  background-attachment: fixed;
+}
+
+/* --------------------------------------------------------------------------
+   Yerlesim
+   -------------------------------------------------------------------------- */
+.page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 44rem;
+  padding: 1.25rem 1rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-300);
+}
+
+.section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--line-strong), transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Kartlar
+   -------------------------------------------------------------------------- */
+.card {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+}
+
+.card-pad {
+  padding: 1rem 1.1rem;
+}
+
+.card-link {
+  display: block;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.card-link:hover {
+  border-color: var(--color-pitch-600);
+  background: var(--surface-strong);
+  transform: translateY(-1px);
+}
+
+.divide-line > * + * {
+  border-top: 1px solid var(--line);
+}
+
+/* --------------------------------------------------------------------------
+   Butonlar
+   -------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--color-gold-400), var(--color-gold-500));
+  color: #241a02;
+  box-shadow: 0 10px 24px -14px rgba(240, 180, 41, 0.9);
+}
+
+.btn-go {
+  background: linear-gradient(180deg, #2fd06b, #16a34a);
+  color: #04130a;
+  box-shadow: 0 10px 24px -14px rgba(34, 197, 94, 0.9);
+}
+
+.btn-danger {
+  background: linear-gradient(180deg, #f2604f, #d33a2a);
+  color: #1a0603;
+}
+
+.btn-ghost {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--color-ink-100);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 0.6rem;
+}
+
+/* --------------------------------------------------------------------------
+   Form alanlari
+   -------------------------------------------------------------------------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-cream-100);
+}
+
+.hint {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--color-ink-300);
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.7rem;
+  background: rgba(4, 18, 12, 0.55);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  color: var(--color-ink-100);
+  font-family: inherit;
+}
+
+.input:focus {
+  outline: 2px solid rgba(240, 180, 41, 0.55);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.input::placeholder {
+  color: var(--color-ink-500);
+}
+
+/* Tarayicinin takvim/saat ikonlarini koyu zeminde gorunur kilar */
+.input::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Rozetler
+   -------------------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  padding: 0.1rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--color-ink-300);
+}
+
+.badge-vip {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.14);
+  color: var(--color-gold-400);
+}
+
+.badge-priority {
+  border-color: rgba(96, 165, 250, 0.4);
+  background: rgba(96, 165, 250, 0.14);
+  color: #93c5fd;
+}
+
+.badge-live {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ade80;
+}
+
+.badge-muted {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* --------------------------------------------------------------------------
+   Acilir menu. Saydam kart zemini arkasindaki icerigi gosterdigi icin
+   menu paneli opak bir zemin kullanir.
+   -------------------------------------------------------------------------- */
+.menu-panel {
+  background-color: #0a1d14;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 26px 60px -18px rgba(0, 0, 0, 0.95);
+  backdrop-filter: none;
+}

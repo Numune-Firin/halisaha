@@ -1,10 +1,10 @@
 {
-  "name": "Halı Saha",
-  "short_name": "Halı Saha",
+  "name": "Numune Fırın Futbol Ligi",
+  "short_name": "Futbol Ligi",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#111111",
+  "background_color": "#04120c",
+  "theme_color": "#04120c",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
