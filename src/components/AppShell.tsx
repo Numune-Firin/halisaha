@@ -18,6 +18,11 @@ const ADMIN_GROUP: NavGroup = {
   items: [
     { href: '/admin', label: 'Yönetim paneli', description: 'Üye onayları ve yeni anket' },
     { href: '/admin/seasons', label: 'Sezonlar', description: 'Sezon tanımı, başlangıç ve bitiş' },
+    {
+      href: '/admin/schedule',
+      label: 'Anket takvimi',
+      description: 'Her hafta kendiliğinden açılan maçlar',
+    },
   ],
 };
 

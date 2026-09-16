@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { getCurrentProfile, createServerSupabase } from '@/lib/supabase/server';
+import { ensureScheduledMatches } from '@/lib/db/schedule';
 import {
   formatKickoff,
   MATCH_STATUS_BADGES,
@@ -13,6 +14,10 @@ export default async function HomePage() {
   const profile = await getCurrentProfile();
   if (!profile) redirect('/login');
   if (profile.status !== 'active') redirect('/pending-approval');
+
+  // Anket takviminde vakti gelmis maclar burada acilir. Ucretsiz planda
+  // zamanlanmis gorev olmadigi icin tetikleyici, uygulamayi acan ilk kisidir.
+  await ensureScheduledMatches();
 
   const supabase = await createServerSupabase();
 

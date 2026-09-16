@@ -85,6 +85,14 @@ export default async function AdminPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="section-title">Yeni anket aç</h2>
+        <p className="hint">
+          Tek seferlik bir maç için. Her hafta aynı gün ve saatte oynuyorsanız tek tek açmak
+          yerine{' '}
+          <Link href="/admin/schedule" className="text-gold-400 underline">
+            anket takvimi
+          </Link>{' '}
+          tanımla; anketler kendiliğinden açılsın.
+        </p>
         <form action={openPoll} className="card card-pad flex flex-col gap-4">
           <div className="field">
             <label className="label" htmlFor="kickoffAt">

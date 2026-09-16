@@ -14,12 +14,15 @@ export interface MatchSummary {
 }
 
 export interface PollRow {
+  /** Uye ise profiles.id, aday oyuncu ise guest_players.id */
   playerId: string;
   fullName: string;
   position: Position | null;
   entryType: EntryType;
   rank: number;
   placement: 'squad' | 'reserve';
+  /** Gruba uye olmayan, admin'in elle ekledigi aday oyuncu */
+  isGuest: boolean;
 }
 
 /** Bir macin anket listesini sunucuda hesaplayip sirali dondurur. */
@@ -42,7 +45,7 @@ export async function getPoll(
 
   const { data: entryRows, error: entryError } = await supabase
     .from('match_entries')
-    .select('player_id, entry_type, entered_at, offset_seconds, vip_rank, withdrawn_at, profiles(full_name, position)')
+    .select('player_id, guest_id, entry_type, entered_at, offset_seconds, vip_rank, withdrawn_at, profiles(full_name, position), guest_players(full_name, position)')
     .eq('match_id', matchId);
 
   // Ayni gerekce: bu sorgu hata verirse rows'u sessizce [] yapmak, ankette
@@ -51,8 +54,11 @@ export async function getPoll(
 
   const rows = entryRows ?? [];
 
+  // Siralamada uye ile aday oyuncu ayni havuzdadir. Satirin kimligi olarak
+  // uyenin profiles.id'si ya da aday oyuncunun guest_players.id'si kullanilir;
+  // ikisi de uuid oldugu icin carpismazlar.
   const entries: PollEntry[] = rows.map((r) => ({
-    playerId: r.player_id as string,
+    playerId: (r.player_id ?? r.guest_id) as string,
     entryType: r.entry_type as EntryType,
     enteredAt: new Date(r.entered_at as string).getTime(),
     offsetSeconds: r.offset_seconds as number,
@@ -66,10 +72,18 @@ export async function getPoll(
     squadSize: matchRow.squad_size as number,
   });
 
-  const profileById = new Map<string, { fullName: string; position: Position | null }>(
+  type Participant = { fullName: string; position: Position | null; isGuest: boolean };
+  const participantById = new Map<string, Participant>(
     rows.map((r) => {
-      const p = r.profiles as unknown as { full_name: string; position: Position | null };
-      return [r.player_id as string, { fullName: p?.full_name ?? '', position: p?.position ?? null }];
+      const isGuest = r.player_id === null;
+      const source = (isGuest ? r.guest_players : r.profiles) as unknown as {
+        full_name: string;
+        position: Position | null;
+      };
+      return [
+        (r.player_id ?? r.guest_id) as string,
+        { fullName: source?.full_name ?? '', position: source?.position ?? null, isGuest },
+      ];
     }),
   );
 
@@ -86,11 +100,12 @@ export async function getPoll(
     },
     rows: ranked.map((p) => ({
       playerId: p.playerId,
-      fullName: profileById.get(p.playerId)?.fullName ?? '',
-      position: profileById.get(p.playerId)?.position ?? null,
+      fullName: participantById.get(p.playerId)?.fullName ?? '',
+      position: participantById.get(p.playerId)?.position ?? null,
       entryType: p.entryType,
       rank: p.rank,
       placement: p.placement,
+      isGuest: participantById.get(p.playerId)?.isGuest ?? false,
     })),
   };
 }

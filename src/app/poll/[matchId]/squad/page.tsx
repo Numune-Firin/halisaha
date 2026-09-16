@@ -4,7 +4,8 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { getPoll } from '@/lib/db/poll';
 import { formatKickoff } from '@/lib/ui/format';
-import { lockSquad } from './actions';
+import { lockSquad, unlockSquad } from './actions';
+import { SquadPicker, type PickerPerson } from './SquadPicker';
 
 export default async function SquadPage({
   params,
@@ -30,15 +31,38 @@ export default async function SquadPage({
     .order('full_name');
   if (error) throw new Error(error.message);
 
-  const inSquad = new Set(
-    data.rows.filter((r) => r.placement === 'squad').map((r) => r.playerId),
-  );
+  const { data: allGuests, error: guestError } = await supabase
+    .from('guest_players')
+    .select('id, full_name')
+    .eq('is_active', true)
+    .order('full_name');
+  if (guestError) throw new Error(guestError.message);
+
+  const people: PickerPerson[] = [
+    ...(allMembers ?? []).map((m) => ({
+      id: m.id as string,
+      fullName: m.full_name as string,
+      isGuest: false,
+    })),
+    ...(allGuests ?? []).map((g) => ({
+      id: g.id as string,
+      fullName: g.full_name as string,
+      isGuest: true,
+    })),
+  ];
+
+  const preselectedIds = data.rows
+    .filter((r) => r.placement === 'squad')
+    .map((r) => r.playerId);
 
   async function save(formData: FormData) {
     'use server';
-    const selected = formData.getAll('player') as string[];
-    await lockSquad(matchId, selected);
+    const playerIds = formData.getAll('player') as string[];
+    const guestIds = formData.getAll('guest') as string[];
+    await lockSquad(matchId, playerIds, guestIds);
   }
+
+  const isLocked = data.match.status === 'squad_locked';
 
   return (
     <AppShell
@@ -49,29 +73,27 @@ export default async function SquadPage({
       <div className="card card-pad text-sm leading-relaxed text-ink-300">
         Sahada fiilen oynayan oyuncuları işaretle. Anketteki ilk{' '}
         <span className="text-cream-100">{data.match.squadSize}</span> kişi hazır işaretli gelir.
-        Puanlar ve ödemeler bu liste üzerinden işler ve anket kapanır.
+        Puanlar ve ödemeler bu liste üzerinden işler ve anket kapanır. Kadro tam{' '}
+        <span className="text-cream-100">{data.match.squadSize}</span> kişi olmadan
+        kesinleştirilemez.
       </div>
 
-      <form action={save} className="flex flex-col gap-3">
-        <ul className="card divide-line">
-          {(allMembers ?? []).map((m) => (
-            <li key={m.id}>
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5">
-                <input
-                  type="checkbox"
-                  name="player"
-                  value={m.id}
-                  defaultChecked={inSquad.has(m.id)}
-                  className="h-4 w-4 accent-[var(--color-gold-400)]"
-                />
-                <span className="text-sm text-ink-100">{m.full_name || 'İsimsiz oyuncu'}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
+      {isLocked && (
+        <form action={unlockSquad.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+          <p className="text-sm text-ink-300">
+            Bu maçın kadrosu kesinleşmiş durumda. Geri alırsan anket yeniden açılır ve liste
+            değiştirilebilir.
+          </p>
+          <button className="btn btn-danger btn-sm self-start">Kadroyu geri al</button>
+        </form>
+      )}
 
-        <button className="btn btn-primary btn-block">Kadroyu kesinleştir</button>
-      </form>
+      <SquadPicker
+        people={people}
+        preselectedIds={preselectedIds}
+        squadSize={data.match.squadSize}
+        action={save}
+      />
     </AppShell>
   );
 }

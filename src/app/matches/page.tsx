@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { getCurrentProfile, createServerSupabase } from '@/lib/supabase/server';
+import { ensureScheduledMatches } from '@/lib/db/schedule';
 import {
   formatKickoff,
   MATCH_STATUS_BADGES,
@@ -15,6 +16,9 @@ export default async function MatchesPage() {
   if (profile.status !== 'active') redirect('/pending-approval');
 
   const supabase = await createServerSupabase();
+  // Takvimde vakti gelmis maclar bu liste olusmadan once acilir
+  await ensureScheduledMatches();
+
   const { data: matches, error } = await supabase
     .from('matches')
     .select('id, kickoff_at, venue, status, squad_size')

@@ -58,10 +58,24 @@ export async function addVip(matchId: string, playerId: string) {
     .eq('entry_type', 'vip');
   if (countError) throw new Error(countError.message);
 
-  const { error } = await supabase.from('match_entries').upsert(
-    { match_id: matchId, player_id: playerId, entry_type: 'vip', vip_rank: (count ?? 0) + 1, withdrawn_at: null },
-    { onConflict: 'match_id,player_id' },
-  );
+  // upsert kullanilmaz: 0009'dan sonra (match_id, player_id) tekilligi kismi bir
+  // indekstir (player_id null olabilir, aday oyuncular icin) ve PostgREST'in
+  // urettigi ON CONFLICT ifadesi kismi indeksi secemez. Once var mi diye bakilir.
+  const fields = { entry_type: 'vip' as const, vip_rank: (count ?? 0) + 1, withdrawn_at: null };
+
+  const { data: existing, error: readError } = await supabase
+    .from('match_entries')
+    .select('id')
+    .eq('match_id', matchId)
+    .eq('player_id', playerId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+
+  const { error } = existing
+    ? await supabase.from('match_entries').update(fields).eq('id', existing.id)
+    : await supabase
+        .from('match_entries')
+        .insert({ match_id: matchId, player_id: playerId, ...fields });
   if (error) throw new Error(error.message);
 
   revalidatePath(`/poll/${matchId}`);

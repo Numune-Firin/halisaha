@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServiceSupabase } from '@/lib/supabase/admin';
 import { evaluateWithdrawal } from '@/lib/poll/withdrawal';
 import { sumOffsets, consumableIds } from '@/lib/poll/offsets';
@@ -119,4 +120,74 @@ export async function togglePollEntry(matchId: string) {
 
   if (hasOpenEntry) await leavePoll(matchId);
   else await joinPoll(matchId);
+}
+
+/**
+ * Admin ankete mevcut bir uyeyi ya da daha once tanimlanmis bir aday oyuncuyu
+ * elle ekler. Secim degeri "m:<uuid>" (uye) ya da "g:<uuid>" (aday) bicimindedir;
+ * tek bir acilir listede iki turu birlikte gosterebilmek icin boyle onekli.
+ */
+export async function adminAddParticipant(matchId: string, formData: FormData) {
+  await requireAdmin();
+
+  const raw = ((formData.get('participant') as string) ?? '').trim();
+  const [kind, id] = raw.split(':');
+  if ((kind !== 'm' && kind !== 'g') || !id) throw new Error('Eklenecek kişiyi seç');
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.rpc('admin_add_entry', {
+    p_match_id: matchId,
+    p_player_id: kind === 'm' ? id : null,
+    p_guest_id: kind === 'g' ? id : null,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/poll/${matchId}`);
+}
+
+/**
+ * Yeni bir aday oyuncu tanimlar ve ayni anda ankete ekler. Aday oyuncu kaydi
+ * kalicidir: sonraki maclarda listeden tekrar secilebilir.
+ */
+export async function adminAddNewGuest(matchId: string, formData: FormData) {
+  await requireAdmin();
+
+  const fullName = ((formData.get('fullName') as string) ?? '').trim();
+  if (!fullName) throw new Error('Aday oyuncunun adı gerekli');
+  const position = ((formData.get('position') as string) ?? '').trim() || null;
+
+  const supabase = await createServerSupabase();
+  const { data: guest, error: insertError } = await supabase
+    .from('guest_players')
+    .insert({ full_name: fullName, position })
+    .select('id')
+    .single();
+  if (insertError) throw new Error(insertError.message);
+
+  const { error } = await supabase.rpc('admin_add_entry', {
+    p_match_id: matchId,
+    p_player_id: null,
+    p_guest_id: guest.id,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/poll/${matchId}`);
+}
+
+/**
+ * Admin bir kaydi listeden tamamen cikarir. Oyuncunun kendi cikisi degildir:
+ * yanlislikla eklenen kisiyi temizler, bu yuzden gec cikis cezasi yazilmaz.
+ */
+export async function adminRemoveEntry(matchId: string, participantId: string, isGuest: boolean) {
+  await requireAdmin();
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.rpc('admin_remove_entry', {
+    p_match_id: matchId,
+    p_player_id: isGuest ? null : participantId,
+    p_guest_id: isGuest ? participantId : null,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/poll/${matchId}`);
 }

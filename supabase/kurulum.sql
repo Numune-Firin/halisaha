@@ -2,8 +2,8 @@
 -- HALI SAHA - TEK PARCA VERITABANI KURULUM DOSYASI
 -- =============================================================================
 --
--- Bu dosya, supabase/migrations/ klasorundeki alti migration dosyasinin
--- (0001'den 0006'ya) sirayla ve degistirilmeden birlestirilmis halidir.
+-- Bu dosya, supabase/migrations/ klasorundeki dokuz migration dosyasinin
+-- (0001'den 0009'a) sirayla ve degistirilmeden birlestirilmis halidir.
 -- Amac: Supabase panelindeki "SQL Editor"e tek seferde kopyala-yapistir-calistir
 -- yapabilmen; alti ayri dosyayla tek tek ugrasman gerekmesin.
 --
@@ -15,7 +15,7 @@
 --      olusturulmus olur. Bu normaldir, veritabanina zarar vermez; sadece
 --      dosyayi tekrar calistirmana gerek olmadiginin isaretidir.
 --   3) Adim adim kurulum talimati icin proje kokundeki KURULUM.md dosyasina bak.
---   4) supabase/migrations/ klasorundeki alti dosya SILINMEDI, bu dosyayla
+--   4) supabase/migrations/ klasorundeki dosyalar SILINMEDI, bu dosyayla
 --      birlikte duruyor (ileride yeni migration eklemek icin referans olarak).
 --
 -- =============================================================================
@@ -123,7 +123,6 @@ create table settings (
   late_withdrawal_penalty_seconds int not null default 8
 );
 insert into settings default values;
-
 
 -- -----------------------------------------------------------------------------
 -- KAYNAK: supabase/migrations/0002_rls.sql
@@ -246,7 +245,6 @@ create policy match_entries_all_admin on match_entries for all
 create policy adjustments_select on adjustments for select using (is_active_member());
 create policy adjustments_all    on adjustments for all    using (is_admin()) with check (is_admin());
 
-
 -- -----------------------------------------------------------------------------
 -- KAYNAK: supabase/migrations/0003_offset_guard.sql
 -- Kullanicilarin kendi ceza/odul (ofset) degerlerini degistirmesini engelleyen ek koruma kurali.
@@ -280,7 +278,6 @@ $$;
 create trigger match_entries_guard_trg
   before update on match_entries
   for each row execute function guard_player_entry_fields();
-
 
 -- -----------------------------------------------------------------------------
 -- KAYNAK: supabase/migrations/0004_rpc.sql
@@ -396,7 +393,6 @@ revoke all on function public.leave_poll(uuid, uuid, boolean, int) from authenti
 grant execute on function public.join_poll(uuid, uuid, int, uuid[]) to service_role;
 grant execute on function public.leave_poll(uuid, uuid, boolean, int) to service_role;
 
-
 -- -----------------------------------------------------------------------------
 -- KAYNAK: supabase/migrations/0005_match_squad.sql
 -- Kesinlesen kadroyu (siyah/beyaz takim atamasi) saklayan match_squad tablosunu ve RLS politikalarini olusturur.
@@ -416,7 +412,6 @@ create index match_squad_match_idx on match_squad (match_id);
 alter table match_squad enable row level security;
 create policy match_squad_select on match_squad for select using (is_active_member());
 create policy match_squad_all    on match_squad for all    using (is_admin()) with check (is_admin());
-
 
 -- -----------------------------------------------------------------------------
 -- KAYNAK: supabase/migrations/0006_lock_squad.sql
@@ -453,13 +448,11 @@ $$;
 revoke all on function public.lock_squad(uuid, uuid[]) from public;
 grant execute on function public.lock_squad(uuid, uuid[]) to authenticated;
 
-
-
-
 -- -----------------------------------------------------------------------------
 -- KAYNAK: supabase/migrations/0007_realtime.sql
 -- Anket girislerinin canli yayinlanmasi icin Realtime aboneligini acar.
 -- -----------------------------------------------------------------------------
+
 -- Anket listesinin canli guncellenmesi icin match_entries tablosunu
 -- Supabase Realtime yayinina ekler. Yayinda zaten varsa hata vermez.
 do $$
@@ -469,3 +462,368 @@ exception
   when duplicate_object then null;
 end;
 $$;
+
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0008_match_schedules.sql
+-- Haftalik tekrar eden anket takvimi: bir kez tanimlanan gun/saat icin maclari kendiliginden acar.
+-- -----------------------------------------------------------------------------
+
+-- Haftalik tekrar eden anket takvimi.
+--
+-- Amac: "her Pazartesi 12:00" gibi tek bir tanim yapildiginda maclarin ve
+-- anketlerin kendiliginden acilmasi. Takvim bilerek SEZONA BAGLI DEGILDIR:
+-- sezon bittiginde ya da yeni sezon acildiginda tanim yerinde kalir ve
+-- uretilen maclar o an aktif olan sezona baglanir. Boylece yeni sezonun ilk
+-- macinda yeniden tanim yapmak gerekmez.
+create table match_schedules (
+  id                              uuid primary key default gen_random_uuid(),
+  -- ISO haftagunu: 1 = Pazartesi ... 7 = Pazar
+  weekday                         int not null check (weekday between 1 and 7),
+  start_time                      time not null,
+  venue                           text not null default '',
+  squad_size                      int not null default 14 check (squad_size between 2 and 40),
+  fee_per_player                  numeric(10,2) not null default 0 check (fee_per_player >= 0),
+  withdrawal_window_hours         int not null default 20 check (withdrawal_window_hours >= 0),
+  late_withdrawal_penalty_seconds int not null default 8 check (late_withdrawal_penalty_seconds >= 0),
+  -- Anket, mac saatine bu kadar gun kala acilir
+  open_days_before                int not null default 7 check (open_days_before between 0 and 60),
+  is_active                       boolean not null default true,
+  created_at                      timestamptz not null default now()
+);
+
+-- Hangi macin hangi takvimden dogdugu izlenebilsin
+alter table matches add column schedule_id uuid references match_schedules(id) on delete set null;
+
+-- Es zamanli iki uretim ayni maci iki kez yazamaz
+create unique index matches_schedule_kickoff_uniq
+  on matches (schedule_id, kickoff_at)
+  where schedule_id is not null;
+
+alter table match_schedules enable row level security;
+
+-- seasons/matches ile ayni kural: aktif uyeler okur, admin yazar
+create policy match_schedules_select on match_schedules for select using (is_active_member());
+create policy match_schedules_all    on match_schedules for all    using (is_admin()) with check (is_admin());
+
+-- Vakti gelmis takvim maclarini olusturur ve olusturulan sayiyi dondurur.
+--
+-- Idempotenttir: ayni an icin mac zaten varsa hicbir sey yapmaz, bu yuzden
+-- her sayfa acilisinda cagrilabilir. Boylece ayri bir zamanlanmis gorev
+-- (cron) kurmadan, uygulamayi kullanan ilk kisi yeni haftanin anketini acmis
+-- olur. Istenirse pg_cron ile gunde bir kez de cagrilabilir.
+--
+-- security definer: anketi acma yetkisi adminde oldugu icin siradan bir uyenin
+-- sayfa acmasi normalde mac yazamaz. Fonksiyon kullanici girdisi almaz, yalnizca
+-- match_schedules satirlarini uygular; disaridan gelen tek sey cagirma anidir.
+create or replace function public.ensure_scheduled_matches()
+returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  v_schedule record;
+  v_today    date;
+  v_delta    int;
+  v_date     date;
+  v_kickoff  timestamptz;
+  v_season   uuid;
+  v_week     int;
+  v_created  int := 0;
+begin
+  -- Anonim ya da onay bekleyen kullanicilar takvimi tetikleyemez
+  if not is_active_member() then
+    return 0;
+  end if;
+
+  select id into v_season from seasons where is_active limit 1;
+
+  -- Gun donumu Turkiye saatine gore hesaplanir; sunucu UTC calisir
+  v_today := (now() at time zone 'Europe/Istanbul')::date;
+
+  for v_schedule in select * from match_schedules where is_active loop
+    -- Bu haftanin ilgili gunune kac gun var (bugunse 0)
+    v_delta := (v_schedule.weekday - extract(isodow from v_today)::int + 7) % 7;
+
+    -- open_days_before en fazla 60 gun oldugu icin 10 hafta her durumu kapsar
+    for v_week in 0..9 loop
+      v_date    := v_today + v_delta + v_week * 7;
+      v_kickoff := (v_date + v_schedule.start_time) at time zone 'Europe/Istanbul';
+
+      -- Bu hafta cok uzaksa sonrakiler daha da uzaktir
+      exit when v_kickoff > now() + make_interval(days => v_schedule.open_days_before);
+
+      if v_kickoff > now()
+         and not exists (select 1 from matches where kickoff_at = v_kickoff)
+      then
+        begin
+          insert into matches (
+            season_id, schedule_id, kickoff_at, venue, squad_size, fee_per_player,
+            withdrawal_window_hours, late_withdrawal_penalty_seconds
+          ) values (
+            v_season, v_schedule.id, v_kickoff, v_schedule.venue, v_schedule.squad_size,
+            v_schedule.fee_per_player, v_schedule.withdrawal_window_hours,
+            v_schedule.late_withdrawal_penalty_seconds
+          );
+          v_created := v_created + 1;
+        exception
+          -- Baska bir istek ayni maci bizden once yazdi; sorun degil
+          when unique_violation then null;
+        end;
+      end if;
+    end loop;
+  end loop;
+
+  return v_created;
+end;
+$$;
+
+revoke all on function public.ensure_scheduled_matches() from public;
+grant execute on function public.ensure_scheduled_matches() to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0009_guests_and_squad_control.sql
+-- Uye olmayan aday oyuncular, kadro dolmadan kilitlememe, kilidi geri alma ve ankete elle kisi ekleme.
+-- -----------------------------------------------------------------------------
+
+-- Aday oyuncular, kadro kilidinin geri alinmasi ve ankete elle kisi ekleme.
+--
+-- 1) Aday oyuncu: gruba uye olmayan, Google hesabiyla girmeyen ama maca gelen
+--    kisi. auth.users kaydi olmadigi icin profiles'a yazilamaz, ayri tabloda
+--    tutulur. Ankette ve kadroda uyelerle ayni satirlarda yer alir.
+-- 2) Kadro ancak kontenjan dolunca kesinlestirilebilir.
+-- 3) Kesinlesmis kadro admin tarafindan geri alinabilir.
+create table guest_players (
+  id         uuid primary key default gen_random_uuid(),
+  full_name  text not null check (length(btrim(full_name)) > 0),
+  position   position_t,
+  is_active  boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table guest_players enable row level security;
+create policy guest_players_select on guest_players for select using (is_active_member());
+create policy guest_players_all    on guest_players for all    using (is_admin()) with check (is_admin());
+
+-- Anket ve kadro satirlari artik ya bir uyeye ya da bir aday oyuncuya aittir.
+-- num_nonnulls = 1 ikisinin ayni anda dolu ya da ikisinin birden bos olmasini engeller.
+alter table match_entries
+  alter column player_id drop not null,
+  add column guest_id uuid references guest_players(id) on delete cascade,
+  add constraint match_entries_participant_ck check (num_nonnulls(player_id, guest_id) = 1);
+
+-- (match_id, player_id) tekilligi, player_id null olabildigi icin kismi indekse cevrilir
+alter table match_entries drop constraint match_entries_match_id_player_id_key;
+create unique index match_entries_player_uniq on match_entries (match_id, player_id) where player_id is not null;
+create unique index match_entries_guest_uniq  on match_entries (match_id, guest_id)  where guest_id  is not null;
+
+alter table match_squad
+  alter column player_id drop not null,
+  add column guest_id uuid references guest_players(id) on delete cascade,
+  add constraint match_squad_participant_ck check (num_nonnulls(player_id, guest_id) = 1);
+
+alter table match_squad drop constraint match_squad_match_id_player_id_key;
+create unique index match_squad_player_uniq on match_squad (match_id, player_id) where player_id is not null;
+create unique index match_squad_guest_uniq  on match_squad (match_id, guest_id)  where guest_id  is not null;
+
+-- Kesin kadroyu tek islemde yazar: eski kadroyu siler, yenisini ekler, maci
+-- kadrosu kesinlesmis duruma gecirir. Ucu birden basarili olur ya da hicbiri olmaz.
+--
+-- 0006'daki surumun uzerine iki degisiklik: aday oyuncular da kadroya yazilabilir
+-- ve secilen kisi sayisi kontenjana esit degilse kilitleme reddedilir. Sayi
+-- kontrolu burada, veritabaninda yapilir; arayuzdeki kontrol yalnizca kolaylik.
+drop function if exists public.lock_squad(uuid, uuid[]);
+
+create or replace function public.lock_squad(
+  p_match_id uuid, p_player_ids uuid[], p_guest_ids uuid[]
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_squad_size int;
+  v_status     match_status_t;
+  v_selected   int;
+begin
+  if not public.is_admin() then
+    raise exception 'Yetkisiz';
+  end if;
+
+  select squad_size, status into v_squad_size, v_status from matches where id = p_match_id;
+  if v_squad_size is null then
+    raise exception 'Mac bulunamadi';
+  end if;
+
+  if v_status in ('played', 'completed') then
+    raise exception 'Oynanmis macin kadrosu degistirilemez';
+  end if;
+
+  v_selected := coalesce(array_length(p_player_ids, 1), 0)
+              + coalesce(array_length(p_guest_ids, 1), 0);
+
+  if v_selected <> v_squad_size then
+    raise exception 'Kadro % kisi olmali, su an % kisi secili', v_squad_size, v_selected;
+  end if;
+
+  delete from match_squad where match_id = p_match_id;
+
+  if array_length(p_player_ids, 1) is not null then
+    insert into match_squad (match_id, player_id)
+    select p_match_id, unnest(p_player_ids);
+  end if;
+
+  if array_length(p_guest_ids, 1) is not null then
+    insert into match_squad (match_id, guest_id)
+    select p_match_id, unnest(p_guest_ids);
+  end if;
+
+  update matches set status = 'squad_locked' where id = p_match_id;
+end;
+$$;
+
+revoke all on function public.lock_squad(uuid, uuid[], uuid[]) from public;
+grant execute on function public.lock_squad(uuid, uuid[], uuid[]) to authenticated;
+
+-- Kesinlesmis kadroyu geri alir: kadro satirlari silinir, anket yeniden acilir.
+-- Oynanmis/tamamlanmis maclarda calismaz; puan ve odeme kayitlari o asamada
+-- kadroya dayandigi icin geri alma yalnizca kilit asamasinda anlamlidir.
+create or replace function public.unlock_squad(p_match_id uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_status match_status_t;
+begin
+  if not public.is_admin() then
+    raise exception 'Yetkisiz';
+  end if;
+
+  select status into v_status from matches where id = p_match_id;
+  if v_status is null then
+    raise exception 'Mac bulunamadi';
+  end if;
+
+  if v_status <> 'squad_locked' then
+    raise exception 'Yalnizca kadrosu kesinlesmis mac geri alinabilir';
+  end if;
+
+  delete from match_squad where match_id = p_match_id;
+  update matches set status = 'poll_open' where id = p_match_id;
+end;
+$$;
+
+revoke all on function public.unlock_squad(uuid) from public;
+grant execute on function public.unlock_squad(uuid) to authenticated;
+
+-- Admin bir uyeyi ya da aday oyuncuyu ankete elle ekler.
+--
+-- Giris zamani her zaman simdiki andir: elle eklenen kisi sirada en sona,
+-- kendi giren herkesin arkasina yazilir. Daha once cikmis bir kayit varsa
+-- yeniden acilir. Ofsete (ceza/odul) dokunulmaz; elle ekleme bir ceza
+-- tuketimi degildir.
+create or replace function public.admin_add_entry(
+  p_match_id uuid, p_player_id uuid, p_guest_id uuid
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Yetkisiz';
+  end if;
+
+  if num_nonnulls(p_player_id, p_guest_id) <> 1 then
+    raise exception 'Bir uye ya da bir aday oyuncu secilmeli';
+  end if;
+
+  if not exists (select 1 from matches where id = p_match_id and status = 'poll_open') then
+    raise exception 'Anket kapali';
+  end if;
+
+  if p_player_id is not null then
+    insert into match_entries (match_id, player_id)
+    values (p_match_id, p_player_id)
+    on conflict (match_id, player_id) where player_id is not null
+    do update set withdrawn_at = null, is_late_withdrawal = false, entered_at = now();
+  else
+    insert into match_entries (match_id, guest_id)
+    values (p_match_id, p_guest_id)
+    on conflict (match_id, guest_id) where guest_id is not null
+    do update set withdrawn_at = null, is_late_withdrawal = false, entered_at = now();
+  end if;
+end;
+$$;
+
+revoke all on function public.admin_add_entry(uuid, uuid, uuid) from public;
+grant execute on function public.admin_add_entry(uuid, uuid, uuid) to authenticated;
+
+-- Admin bir kaydi anketten tamamen siler. Cikis (leave_poll) degildir:
+-- yanlislikla eklenen kisiyi temizler, bu yuzden gec cikis cezasi yazmaz.
+create or replace function public.admin_remove_entry(
+  p_match_id uuid, p_player_id uuid, p_guest_id uuid
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Yetkisiz';
+  end if;
+
+  if num_nonnulls(p_player_id, p_guest_id) <> 1 then
+    raise exception 'Bir uye ya da bir aday oyuncu secilmeli';
+  end if;
+
+  if not exists (select 1 from matches where id = p_match_id and status = 'poll_open') then
+    raise exception 'Anket kapali';
+  end if;
+
+  delete from match_entries
+  where match_id = p_match_id
+    and ((p_player_id is not null and player_id = p_player_id)
+      or (p_guest_id  is not null and guest_id  = p_guest_id));
+end;
+$$;
+
+revoke all on function public.admin_remove_entry(uuid, uuid, uuid) from public;
+grant execute on function public.admin_remove_entry(uuid, uuid, uuid) to authenticated;
+
+-- join_poll, (match_id, player_id) tekilligine ON CONFLICT ile dayaniyordu.
+-- Bu tekillik yukarida kismi bir indekse cevrildigi icin (player_id artik null
+-- olabiliyor) catisma hedefi de kismi indeksi secebilmek adina WHERE ile
+-- daraltilmali. Govdenin geri kalani 0004'teki ile aynidir.
+create or replace function public.join_poll(
+  p_match_id uuid, p_player_id uuid, p_offset int, p_consumed_ids uuid[]
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_offset int;
+begin
+  if not exists (
+    select 1 from matches where id = p_match_id and status = 'poll_open'
+  ) then
+    raise exception 'Anket kapali';
+  end if;
+
+  perform set_config('app.system_operation', '1', true);
+
+  insert into match_entries (match_id, player_id, entry_type, offset_seconds)
+  values (p_match_id, p_player_id, 'standard', p_offset)
+  on conflict (match_id, player_id) where player_id is not null do update
+     set withdrawn_at       = null,
+         is_late_withdrawal = false,
+         entered_at         = now();
+
+  if array_length(p_consumed_ids, 1) is not null then
+    update adjustments
+       set applied_match_id = p_match_id
+     where id = any(p_consumed_ids)
+       and player_id = p_player_id
+       and applied_match_id is null;
+  end if;
+
+  select coalesce(sum(seconds), 0) into v_offset
+    from adjustments
+   where player_id = p_player_id and applied_match_id = p_match_id;
+
+  update match_entries
+     set offset_seconds = v_offset
+   where match_id = p_match_id and player_id = p_player_id;
+
+  perform set_config('app.system_operation', '0', true);
+end;
+$$;
+
+revoke all on function public.join_poll(uuid, uuid, int, uuid[]) from public;
+revoke all on function public.join_poll(uuid, uuid, int, uuid[]) from authenticated;
+grant execute on function public.join_poll(uuid, uuid, int, uuid[]) to service_role;

@@ -7,15 +7,21 @@ const POSITION_LABELS: Record<string, string> = {
   forward: 'FV',
 };
 
+/** Admin'in bir satiri listeden cikarmasi icin baglanacak sunucu eylemi. */
+export type RemoveEntryAction = (playerId: string, isGuest: boolean) => Promise<void>;
+
 export function PollList({
   rows,
   squadSize,
   showEmptySlots,
+  removeEntry,
 }: {
   rows: PollRow[];
   squadSize: number;
   /** Anket kapandiktan sonra bos kontenjan gostermek anlamsizdir. */
   showEmptySlots: boolean;
+  /** Yalnizca admin'e ve anket acikken verilir. */
+  removeEntry?: RemoveEntryAction;
 }) {
   const squad = rows.filter((r) => r.placement === 'squad');
   const reserves = rows.filter((r) => r.placement === 'reserve');
@@ -29,9 +35,16 @@ export function PollList({
         rows={squad}
         emptyText="Henüz kimse ankete girmedi."
         emptySlots={emptySlots}
+        removeEntry={removeEntry}
       />
       {reserves.length > 0 && (
-        <Section title="Yedekler" count={`${reserves.length}`} rows={reserves} emptyText="" />
+        <Section
+          title="Yedekler"
+          count={`${reserves.length}`}
+          rows={reserves}
+          emptyText=""
+          removeEntry={removeEntry}
+        />
       )}
     </div>
   );
@@ -43,12 +56,14 @@ function Section({
   rows,
   emptyText,
   emptySlots = 0,
+  removeEntry,
 }: {
   title: string;
   count: string;
   rows: PollRow[];
   emptyText: string;
   emptySlots?: number;
+  removeEntry?: RemoveEntryAction;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -68,8 +83,19 @@ function Section({
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-ink-100">{r.fullName}</span>
               {r.position && <span className="badge badge-muted">{POSITION_LABELS[r.position]}</span>}
+              {r.isGuest && <span className="badge badge-muted">Aday</span>}
               {r.entryType === 'vip' && <span className="badge badge-vip">VIP</span>}
               {r.entryType === 'priority' && <span className="badge badge-priority">Öncelikli</span>}
+              {removeEntry && (
+                <form action={removeEntry.bind(null, r.playerId, r.isGuest)}>
+                  <button
+                    className="text-xs text-ink-500 underline underline-offset-2 hover:text-ink-100"
+                    title="Listeden çıkar"
+                  >
+                    Çıkar
+                  </button>
+                </form>
+              )}
             </li>
           ))}
 
