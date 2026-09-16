@@ -1,7 +1,15 @@
-export default function Home() {
+import { redirect } from 'next/navigation';
+import { aktifProfil } from '@/lib/supabase/server';
+
+export default async function AnaSayfa() {
+  const profil = await aktifProfil();
+
+  if (!profil) redirect('/giris');
+  if (profil.durum !== 'aktif') redirect('/onay-bekliyor');
+
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-2xl font-semibold">Hali Saha</h1>
+    <main className="p-6">
+      <h1 className="text-xl font-semibold">Merhaba {profil.ad}</h1>
     </main>
   );
 }
