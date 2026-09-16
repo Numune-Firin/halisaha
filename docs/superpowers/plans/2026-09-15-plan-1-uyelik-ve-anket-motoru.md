@@ -1,5 +1,7 @@
 # Halı Saha Sistemi — Plan 1: Üyelik ve Anket Motoru
 
+> **Adlandirma notu:** Bu belge yazildigi gunku Turkce kod adlandirmasini anlatir. Tanimlayicilar sonradan Ingilizce'ye cevrildi; guncel karsiliklar icin `docs/superpowers/adlandirma-sozlugu.md` dosyasina bak.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Onaylı üyelerin ankete girip çıkabildiği, sıralamanın kurallı ve tek merkezden hesaplandığı, admin'in anket açıp kadroyu kesinleştirebildiği çalışır bir uygulama.

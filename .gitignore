@@ -15,7 +15,6 @@ build/
 .DS_Store
 Thumbs.db
 *.log
+*.tsbuildinfo
+.claude/
 
-# Bu projeye ait olmayan mevcut dosyalar
-*.pdf
-docker-compose.yml
