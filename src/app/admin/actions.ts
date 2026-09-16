@@ -15,10 +15,22 @@ export async function anketAc(formData: FormData) {
   await adminGerekli();
   const supabase = await sunucuIstemcisi();
 
-  const { data: ayar } = await supabase.from('settings').select('*').single();
-  const { data: sezon } = await supabase.from('seasons').select('id').eq('aktif', true).single();
+  // "Sonuc yok" (aktif sezon yok / settings satiri yok) mesru bir durum olabilir
+  // ve maybeSingle() ile sessizce null'a dusulur; ama sorgunun kendisi hata
+  // verirse (ag, izin, vs.) bu farkli bir durumdur ve fark edilmeden sabit
+  // varsayilanlara / sezon_id: null'a dusmek yerine firlatilmalidir — aksi
+  // halde aktif bir sezon varken sezona baglanmamis bir mac sessizce olusabilir.
+  const { data: ayar, error: ayarHata } = await supabase.from('settings').select('*').maybeSingle();
+  if (ayarHata) throw new Error(ayarHata.message);
 
-  await supabase.from('matches').insert({
+  const { data: sezon, error: sezonHata } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('aktif', true)
+    .maybeSingle();
+  if (sezonHata) throw new Error(sezonHata.message);
+
+  const { error: insertHata } = await supabase.from('matches').insert({
     mac_zamani: formData.get('macZamani') as string,
     saha: (formData.get('saha') as string) ?? '',
     sezon_id: sezon?.id ?? null,
@@ -28,6 +40,7 @@ export async function anketAc(formData: FormData) {
     gec_cikis_cezasi_sn: Number(formData.get('gecCikisCezasi') ?? ayar?.gec_cikis_cezasi_sn ?? 8),
     son_odeme_gunu: (formData.get('sonOdemeGunu') as string) || null,
   });
+  if (insertHata) throw new Error(insertHata.message);
 
   revalidatePath('/admin');
 }
@@ -56,11 +69,14 @@ export async function vipEkle(macId: string, oyuncuId: string) {
 export async function oncelikliYap(macId: string, oyuncuId: string) {
   await adminGerekli();
   const supabase = await sunucuIstemcisi();
-  await supabase
+  const { data, error } = await supabase
     .from('match_entries')
     .update({ tip: 'oncelikli' })
     .eq('mac_id', macId)
-    .eq('oyuncu_id', oyuncuId);
+    .eq('oyuncu_id', oyuncuId)
+    .select();
+  if (error) throw new Error(error.message);
+  if ((data ?? []).length === 0) throw new Error('Oyuncu bu ankette bulunamadı');
   revalidatePath(`/anket/${macId}`);
 }
 
