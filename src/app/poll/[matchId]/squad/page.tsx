@@ -16,10 +16,13 @@ export default async function SquadPage({
   if (!data) notFound();
 
   const supabase = await createServerSupabase();
+  // Pasife alinmis uyeler de listelenir: match_squad puanin ve odemenin tek
+  // dayanagi; o mac oynanirken aktif olup sonradan pasife alinan bir oyuncu
+  // isaretlenemezse maçin kaydi kalici olarak eksik kalir.
   const { data: allMembers } = await supabase
     .from('profiles')
     .select('id, full_name')
-    .eq('status', 'active')
+    .in('status', ['active', 'inactive'])
     .order('full_name');
 
   const inSquad = new Set(

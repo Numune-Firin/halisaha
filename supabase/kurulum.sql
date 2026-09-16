@@ -179,12 +179,45 @@ create policy profiles_select on profiles for select
   using (is_active_member() or id = auth.uid());
 
 -- Oyuncu yalniz kendi adini, mevkisini ve avatarini degistirebilir.
--- Rol ve durum degisikligi ayri politikayla yalnizca admin'e acik.
+-- DIKKAT: RLS sutun bazinda kisitlayamaz; bu politika tek basina oyuncunun kendi
+-- satirindaki role/status sutunlarini da yazmasina izin verirdi. Rol ve durum
+-- sutunlarini asagidaki profiles_guard_privileges_trg tetikleyicisi korur.
 create policy profiles_update_own on profiles for update
   using (id = auth.uid()) with check (id = auth.uid());
 
 create policy profiles_update_admin on profiles for update
   using (is_admin()) with check (is_admin());
+
+-- Yetki yukseltmesi korumasi: bir uye kendi satirinda id, role ve status
+-- sutunlarini degistiremez. Aksi halde onay bekleyen bir hesap, anon anahtar ve
+-- kendi oturumuyla tek bir istekte status='active', role='admin' yazip
+-- uygulamadaki tum yetki kapilarini atlayabilirdi.
+create or replace function public.guard_profile_privilege_fields()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- Iki muafiyet:
+  --   1) Oturum yok (auth.uid() null): SQL Editor'den calisan kurulum komutlari
+  --      ve service_role baglantilari. KURULUM.md 9. adimindaki "ilk admin"
+  --      guncellemesi bu muafiyet sayesinde calisir.
+  --   2) Admin: approveMember gibi yonetici islemleri baska bir uyenin durumunu
+  --      ve rolunu degistirebilmeye devam eder.
+  if auth.uid() is null or public.is_admin() then
+    return new;
+  end if;
+
+  if new.id is distinct from old.id
+     or new.role is distinct from old.role
+     or new.status is distinct from old.status then
+    raise exception 'Rol ve durum degisikligini yalnizca yonetici yapabilir';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger profiles_guard_privileges_trg
+  before update on profiles
+  for each row execute function public.guard_profile_privilege_fields();
 
 -- seasons / matches / settings: aktif uyeler okur, admin yazar
 create policy seasons_select on seasons for select using (is_active_member());
@@ -196,28 +229,15 @@ create policy matches_all    on matches for all    using (is_admin()) with check
 create policy settings_select on settings for select using (is_active_member());
 create policy settings_all    on settings for all    using (is_admin()) with check (is_admin());
 
--- match_entries: aktif uyeler okur.
--- Oyuncu yalnizca kendi adina ve yalnizca 'standard' tipte giris yapabilir.
--- 'vip' ve 'priority' tipleri, vip_rank ve offset_seconds yalnizca admin tarafindan yazilir.
+-- match_entries: aktif uyeler okur, yalnizca admin dogrudan yazar.
+-- Oyuncunun ankete girmesi/cikmasi yalnizca join_poll ve leave_poll RPC'lerinden
+-- gecer; bu fonksiyonlar security definer'dir ve yalnizca service_role'a aciktir
+-- (service_role RLS'e tabi degildir). Bu yuzden oyuncuya dogrudan insert/update
+-- izni VERILMEZ: verilseydi oyuncu RPC'yi atlayarak bekleyen cezasini
+-- tuketmeden ankete girebilir, gec cikis cezasindan kacabilir ya da
+-- withdrawn_at'i null'a cekip eski entered_at ile siraya geri donebilirdi.
 create policy match_entries_select on match_entries for select
   using (is_active_member());
-
-create policy match_entries_insert_own on match_entries for insert
-  with check (
-    player_id = auth.uid()
-    and is_active_member()
-    and entry_type = 'standard'
-    and vip_rank is null
-    and offset_seconds = 0
-    and exists (
-      select 1 from matches m
-      where m.id = match_id and m.status = 'poll_open'
-    )
-  );
-
-create policy match_entries_update_own on match_entries for update
-  using (player_id = auth.uid() and is_active_member())
-  with check (player_id = auth.uid());
 
 create policy match_entries_all_admin on match_entries for all
   using (is_admin()) with check (is_admin());
@@ -283,6 +303,8 @@ create or replace function public.join_poll(
   p_match_id uuid, p_player_id uuid, p_offset int, p_consumed_ids uuid[]
 ) returns void
 language plpgsql security definer set search_path = public as $$
+declare
+  v_offset int;
 begin
   if not exists (
     select 1 from matches where id = p_match_id and status = 'poll_open'
@@ -292,13 +314,15 @@ begin
 
   perform set_config('app.system_operation', '1', true);
 
+  -- Ilk giriste p_offset yazilir; tekrar giriste satirdaki ofsete DOKUNULMAZ.
+  -- Iki dalda da dogru deger asagida, tuketim isaretlendikten sonra yeniden
+  -- hesaplanarak yazilir.
   insert into match_entries (match_id, player_id, entry_type, offset_seconds)
   values (p_match_id, p_player_id, 'standard', p_offset)
   on conflict (match_id, player_id) do update
      set withdrawn_at       = null,
          is_late_withdrawal = false,
-         entered_at         = now(),
-         offset_seconds     = match_entries.offset_seconds + p_offset;
+         entered_at         = now();
 
   if array_length(p_consumed_ids, 1) is not null then
     update adjustments
@@ -307,6 +331,20 @@ begin
        and player_id = p_player_id
        and applied_match_id is null;
   end if;
+
+  -- Ofseti bu maca uygulanmis TUM ceza/odullerden yeniden hesapla.
+  -- "+ p_offset" ile toplamak, butona hizli iki kez tiklandiginda (iki istek de
+  -- ayni bekleyen cezayi okur) cezayi iki kez uygulayip bir kez tuketiyordu.
+  -- Yeniden hesaplama her iki sorunu da cozer: ikinci cagri yeni bir kayit
+  -- tuketmedigi icin ayni toplami uretir (idempotent), tekrar giriste ise ilk
+  -- giriste uygulanmis cezalar toplamda kalmaya devam eder (ceza silinmez).
+  select coalesce(sum(seconds), 0) into v_offset
+    from adjustments
+   where player_id = p_player_id and applied_match_id = p_match_id;
+
+  update match_entries
+     set offset_seconds = v_offset
+   where match_id = p_match_id and player_id = p_player_id;
 
   -- Bayrak islem kapsamli (set_config'in ucuncu parametresi true = local).
   -- Yine de acikca sifirlanir: bu fonksiyon ileride baska bir plpgsql

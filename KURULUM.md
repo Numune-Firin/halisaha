@@ -129,6 +129,23 @@ Anket ekranında biri girip çıktığında listenin diğer herkesin ekranında 
 
 ## 8. Uygulamayı bilgisayarda çalıştırma
 
+### 8a. Node.js kurulumu (daha önce kurmadıysan)
+
+Aşağıdaki `npm` komutları **Node.js** ile birlikte gelir. Bilgisayarında Node.js yoksa `npm: command not found` (ya da "npm terimi tanınmıyor") hatası alırsın. Kurulumu:
+
+1. [nodejs.org](https://nodejs.org) adresine git.
+2. İki indirme düğmesinden **LTS** yazanı seç (LTS = uzun süre desteklenen, kararlı sürüm). Windows'ta `.msi` uzantılı bir kurulum dosyası iner.
+3. İnen dosyayı çalıştır, kurulumu varsayılan ayarlarla (hep **Next / İleri**, sonra **Install**) tamamla. Hiçbir kutucuğu değiştirmene gerek yok.
+4. **Kurulum bitince açık olan bütün terminal / VS Code pencerelerini kapat ve yeniden aç.** Bu adımı atlarsan `npm` komutu hâlâ bulunamaz — terminal, kurulumdan önceki ayarlarla açılmış durumdadır.
+5. Doğrula: terminale sırayla şunları yaz, ikisi de sürüm numarası yazdırmalı:
+   ```
+   node -v
+   npm -v
+   ```
+   (`v22.11.0` ve `10.9.0` gibi numaralar görürsün; numaraların birebir aynı olması gerekmez.)
+
+### 8b. Çalıştırma
+
 1. Proje klasörünü bir terminalde aç (VS Code kullanıyorsan Terminal menüsünden yeni terminal açabilirsin).
 2. Şunu çalıştır:
    ```
@@ -222,6 +239,79 @@ Sırayla dene, her adım bir öncekine bağlı:
 7. **Anketten çıkma**: "çık" düğmesine bas, listeden çıktığını gör.
 8. **Kadro kesinleştirme**: Admin panelinden ilgili maçın "kadro" sayfasına git (`/poll/<maçId>/squad`), sahada olacak oyuncuları işaretleyip kaydet, maçın durumunun değiştiğini gör.
 
+### Güvenlik kontrolü (elle, iki deney)
+
+Yukarıdaki adımlar uygulamanın **çalıştığını** gösterir; aşağıdaki iki deney veritabanının **kötüye kullanıma kapalı** olduğunu gösterir. Uygulamadaki yetki ve sıra kuralları veritabanında da ayrıca kilitlidir; bu iki deney o kilidin gerçekten takılı olduğunu doğrular. Kurulumdan sonra bir kez yap, beş dakika sürer.
+
+> **Önemli:** Bu iki deneyi **admin olmayan** bir hesapla yap (kontrol listesinin 6. adımındaki ikinci hesap ideal; onay bekleyen bir hesap da olur). Admin hesabıyla yaparsan ikisi de **başarılı olur** — bu bir açık değil, admin'in zaten bu yetkilere sahip olması demektir.
+
+**Hazırlık.** Admin olmayan hesapla uygulamaya giriş yap (`http://localhost:3000`). Sayfa açıkken klavyeden **F12**'ye bas, açılan panelde **Console** (Konsol) sekmesine geç. Tarayıcı "yapıştırmaya izin vermek için `allow pasting` yaz" uyarısı verirse, konsola `allow pasting` yazıp Enter'a bas, sonra devam et.
+
+Önce şu bloğu kopyala, **ilk iki satırdaki değerleri kendi `.env.local` dosyandakilerle değiştir**, konsola yapıştır ve Enter'a bas:
+
+```js
+const URL_ = "https://xxxxx.supabase.co";   // NEXT_PUBLIC_SUPABASE_URL
+const ANON = "eyJ...";                      // NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+const parcalar = document.cookie.split("; ")
+  .map(c => [c.slice(0, c.indexOf("=")), c.slice(c.indexOf("=") + 1)])
+  .filter(([ad]) => /^sb-.*-auth-token(\.\d+)?$/.test(ad))
+  .sort((a, b) => a[0].localeCompare(b[0]));
+if (parcalar.length === 0) throw new Error("Oturum bulunamadi - once uygulamaya giris yap, sonra bu sayfada tekrar dene.");
+let ham = parcalar.map(([, d]) => decodeURIComponent(d)).join("");
+if (ham.startsWith("base64-")) ham = atob(ham.slice(7).replace(/-/g, "+").replace(/_/g, "/"));
+const oturum = JSON.parse(ham);
+const TOKEN = oturum.access_token;
+const BEN = oturum.user.id;
+const BASLIK = { apikey: ANON, Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", Prefer: "return=representation" };
+console.log("Hazir. Kullanici id:", BEN);
+```
+
+`Hazir. Kullanici id: ...` yazdıysa hazırlık tamam. (Hata alırsan: giriş yapmış olduğundan ve uygulamanın kendi sayfasında olduğundan emin ol.)
+
+**Deney 1 — Kendini yönetici yapmayı dene. Reddedilmeli.**
+
+```js
+fetch(`${URL_}/rest/v1/profiles?id=eq.${BEN}`, {
+  method: "PATCH", headers: BASLIK,
+  body: JSON.stringify({ role: "admin", status: "active" }),
+}).then(r => r.text()).then(t => console.log("SONUC:", t));
+```
+
+Beklenen çıktı (birebir aynı olmayabilir; önemli olan bir **hata mesajı** dönmesi):
+
+```
+SONUC: {"code":"P0001","details":null,"hint":null,"message":"Rol ve durum degisikligini yalnizca yonetici yapabilir"}
+```
+
+Doğrulama: Supabase **Table Editor** → `profiles` tablosunda bu hesabın satırına bak; `role` hâlâ `player`, `status` hâlâ eski değerinde olmalı.
+
+❌ Eğer çıktı `[{"id":...,"role":"admin",...}]` gibi **başarılı** bir sonuçsa, veritabanı koruması yüklenmemiş demektir: 4. bölümdeki `kurulum.sql` adımını tam olarak çalıştırdığından emin ol.
+
+**Deney 2 — Ankete kural dışı, doğrudan girmeyi dene. Reddedilmeli.**
+
+İstersen `MAC` satırına açık bir anketin id'sini yazabilirsin: anket sayfasının adresi `http://localhost:3000/poll/<uzun-kod>` şeklindedir, oradaki uzun kodu kopyala. Elinde yoksa aşağıdaki örnek kodu olduğu gibi bırak — sonuç aynı olmalı.
+
+```js
+const MAC = "99999999-9999-9999-9999-999999999999";
+fetch(`${URL_}/rest/v1/match_entries`, {
+  method: "POST", headers: BASLIK,
+  body: JSON.stringify({ match_id: MAC, player_id: BEN }),
+}).then(r => r.text()).then(t => console.log("SONUC:", t));
+```
+
+Beklenen çıktı:
+
+```
+SONUC: {"code":"42501","details":null,"hint":null,"message":"new row violates row-level security policy for table \"match_entries\""}
+```
+
+(`42501` = "izin yok". Anket kayıtlarına yalnızca uygulamanın kendi giriş/çıkış işlemi yazabilir; bu yüzden doğrudan yazma denemesi reddedilir. Bu koruma olmasaydı, cezalı bir oyuncu cezasını hiç ödemeden listeye girebilir ya da çıktığı sırayı geri alabilirdi.)
+
+❌ Eğer çıktı `[{"id":...}]` gibi **başarılı** bir sonuçsa, oyuncular ceza kurallarını atlayarak ankete girebiliyor demektir: `kurulum.sql`'i tam olarak çalıştırdığını doğrula.
+
+Deneyler bittiğinde konsolu kapatabilirsin; iki deneme de reddedildiği için veritabanında hiçbir kalıcı iz bırakmazlar.
+
 ---
 
 ## 14. Sık karşılaşılan hatalar
@@ -245,6 +335,18 @@ Sırayla dene, her adım bir öncekine bağlı:
 **Ana sayfada / anket listesinde hiçbir şey görünmüyor (boş liste)**
 - Sebep: Ya gerçekten açık anket/maç yok, ya da 4. bölümdeki `kurulum.sql` çalıştırma adımı eksik/yarım kalmış (tablolar veya güvenlik kuralları oluşmamış olabilir), ya da hesabının durumu aktif değil.
 - Çözüm: Supabase **Table Editor**'de `matches` tablosunda satır olup olmadığına bak; yoksa admin panelinden yeni anket aç. Hâlâ sorun varsa `kurulum.sql`'i (SQL Editor'de) tekrar gözden geçir — hata mesajı varsa not al.
+
+**`npm: command not found` / "npm terimi tanınmıyor"**
+- Sebep: Node.js kurulu değil, ya da kurulumdan sonra terminal yeniden açılmadı.
+- Çözüm: 8a bölümündeki adımlarla Node.js'in LTS sürümünü kur; kurulumdan sonra **bütün terminal / VS Code pencerelerini kapatıp yeniden aç**, sonra `node -v` ile doğrula.
+
+**"Ankete gir" düğmesine basınca ham hata ekranı açılıyor**
+- Sebep: `.env.local` dosyasındaki `SUPABASE_SERVICE_ROLE_KEY` değeri boş, eksik ya da yanlış. Ankete giriş/çıkış işlemi bu anahtarla yapılır; anahtar geçersizse işlem daha başlarken hata verir.
+- Çözüm: Supabase panelinde **Settings** → **API** sayfasından `service_role` anahtarını yeniden kopyala, `.env.local` dosyasına baştan sona (başında/sonunda boşluk kalmadan) yapıştır ve `npm run dev`'i durdurup (terminalde Ctrl+C) yeniden başlat. Yayındaki uygulamada aynı değerin Vercel'deki ortam değişkenlerinde de doğru olduğunu kontrol et.
+
+**Giriş yapıyor ama sürekli `/login` sayfasına geri dönüyor**
+- Sebep: Kullanıcı için `profiles` tablosunda satır oluşmamış. Bu satırı `on_auth_user_created` tetikleyicisi otomatik oluşturur; `kurulum.sql` eksik/yarım çalıştıysa bu tetikleyici yoktur.
+- Çözüm: Supabase **Table Editor** → `profiles` tablosunda hesabına ait satır var mı bak. Yoksa 4. bölümdeki `kurulum.sql` dosyasının **tamamının** çalıştığını doğrula (SQL Editor'e baştan sona kopyalandığından emin ol; hata mesajı varsa not al). Kurulumu düzelttikten sonra çıkış yapıp tekrar giriş yap — satır yeni girişte oluşur.
 
 **Liste canlı güncellenmiyor (yenilemeden değişiklik görünmüyor)**
 - Sebep: 7. bölümdeki Replication (yayın) ayarı `match_entries` tablosu için açılmamış olabilir.

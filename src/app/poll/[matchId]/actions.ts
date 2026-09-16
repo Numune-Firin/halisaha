@@ -24,11 +24,19 @@ export async function joinPoll(matchId: string) {
 
   const supabase = await createServerSupabase();
 
-  const { data: pendingRows } = await supabase
+  // Bu maca ait kayitlar disarida birakilir: leave_poll gec cikis cezasini
+  // source_match_id = <bu mac> ile yazar; anket hala acikken tekrar girildiginde
+  // ceza ayni maca uygulanip bedelsiz tuketilirdi. Spec: ceza BIR SONRAKI ankete.
+  // `.neq()` tek basina source_match_id'si null olan satirlari da elerdi
+  // (SQL'de null <> x -> null); admin'in elle yazdigi ceza/odullerin
+  // source_match_id'si null oldugu icin `or` ile acikca dahil ediliyor.
+  const { data: pendingRows, error: pendingError } = await supabase
     .from('adjustments')
     .select('id, player_id, seconds')
     .eq('player_id', profile.id)
-    .is('applied_match_id', null);
+    .is('applied_match_id', null)
+    .or(`source_match_id.is.null,source_match_id.neq.${matchId}`);
+  if (pendingError) throw new Error(pendingError.message);
 
   const pending = (pendingRows ?? []).map((r) => ({
     id: r.id as string,

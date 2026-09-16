@@ -7,7 +7,8 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin';
 export async function approveMember(playerId: string) {
   await requireAdmin();
   const supabase = await createServerSupabase();
-  await supabase.from('profiles').update({ status: 'active' }).eq('id', playerId);
+  const { error } = await supabase.from('profiles').update({ status: 'active' }).eq('id', playerId);
+  if (error) throw new Error(error.message);
   revalidatePath('/admin');
 }
 
@@ -50,16 +51,18 @@ export async function addVip(matchId: string, playerId: string) {
   await requireAdmin();
   const supabase = await createServerSupabase();
 
-  const { count } = await supabase
+  const { count, error: countError } = await supabase
     .from('match_entries')
     .select('id', { count: 'exact', head: true })
     .eq('match_id', matchId)
     .eq('entry_type', 'vip');
+  if (countError) throw new Error(countError.message);
 
-  await supabase.from('match_entries').upsert(
+  const { error } = await supabase.from('match_entries').upsert(
     { match_id: matchId, player_id: playerId, entry_type: 'vip', vip_rank: (count ?? 0) + 1, withdrawn_at: null },
     { onConflict: 'match_id,player_id' },
   );
+  if (error) throw new Error(error.message);
 
   revalidatePath(`/poll/${matchId}`);
   revalidatePath('/admin');
@@ -85,6 +88,7 @@ export async function addAdjustment(playerId: string, seconds: number, reason: s
   await requireAdmin();
   if (seconds === 0) throw new Error('Sıfır ceza yazılamaz');
   const supabase = await createServerSupabase();
-  await supabase.from('adjustments').insert({ player_id: playerId, seconds, reason });
+  const { error } = await supabase.from('adjustments').insert({ player_id: playerId, seconds, reason });
+  if (error) throw new Error(error.message);
   revalidatePath('/admin');
 }
