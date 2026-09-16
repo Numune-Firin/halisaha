@@ -77,6 +77,36 @@ describe('anketiSirala', () => {
     expect(sonuc.map((o) => o.oyuncuId)).toEqual(['vip1', 'vip2', 'normal']);
   });
 
+  it('VIP katmani normalden cok sonra girse bile onde kalir - katman zamani yener', () => {
+    const sonuc = sirala([
+      giris({ oyuncuId: 'normal', girisZamani: ACILIS + SN }),
+      giris({ oyuncuId: 'vip', tip: 'vip', vipSira: 1, girisZamani: ACILIS + 100 * SN }),
+    ]);
+    expect(sonuc.map((o) => o.oyuncuId)).toEqual(['vip', 'normal']);
+  });
+
+  it('ayni vipSira tasiyan iki VIP girdi sirasi tersine cevrildiginde de ayni sonucu verir', () => {
+    const a = giris({ oyuncuId: 'zeta', tip: 'vip', vipSira: 1 });
+    const b = giris({ oyuncuId: 'alfa', tip: 'vip', vipSira: 1 });
+
+    const sonuc1 = sirala([a, b]);
+    const sonuc2 = sirala([b, a]);
+
+    expect(sonuc1.map((o) => o.oyuncuId)).toEqual(sonuc2.map((o) => o.oyuncuId));
+    expect(sonuc1.map((o) => o.oyuncuId)).toEqual(['alfa', 'zeta']);
+  });
+
+  it('vipSira null olan iki VIP icin de girdi sirasindan bagimsiz ayni sonuc gelir', () => {
+    const a = giris({ oyuncuId: 'zeta', tip: 'vip', vipSira: null });
+    const b = giris({ oyuncuId: 'alfa', tip: 'vip', vipSira: null });
+
+    const sonuc1 = sirala([a, b]);
+    const sonuc2 = sirala([b, a]);
+
+    expect(sonuc1.map((o) => o.oyuncuId)).toEqual(sonuc2.map((o) => o.oyuncuId));
+    expect(sonuc1.map((o) => o.oyuncuId)).toEqual(['alfa', 'zeta']);
+  });
+
   it('oncelikliyi VIP altina, normallerin ustune koyar', () => {
     const sonuc = sirala([
       giris({ oyuncuId: 'normal', girisZamani: ACILIS + SN }),

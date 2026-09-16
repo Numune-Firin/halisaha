@@ -8,8 +8,10 @@ const KATMAN_SIRASI = { vip: 0, oncelikli: 1, normal: 2 } as const;
  *
  * Katmanlar: VIP -> Oncelikli -> Normal. Ofset katman atlatmaz.
  * VIP katmani admin'in verdigi vipSira duzenindedir.
- * Diger katmanlarda: efektifZaman = girisZamani + ofsetSn, alt sinir anketAcilis.
- * Esitlik bozucu her zaman gercek giris zamanidir.
+ * Diger katmanlarda: efektifZaman = girisZamani + ofsetSn * 1000 (ofsetSn saniye,
+ * girisZamani ms), alt sinir anketAcilis.
+ * Esitlik bozucu her zaman gercek giris zamanidir, en son da oyuncuId (deterministik
+ * olsun diye) — boylece karsilastirici hicbir durumda kararsiz kalmaz.
  *
  * Cikmis oyuncular (cikisZamani dolu) listede yer almaz.
  */
@@ -34,14 +36,18 @@ export function anketiSirala({
     if (katmanFarki !== 0) return katmanFarki;
 
     if (a.giris.tip === 'vip') {
-      return (a.giris.vipSira ?? Number.MAX_SAFE_INTEGER)
-           - (b.giris.vipSira ?? Number.MAX_SAFE_INTEGER);
+      const vipSiraFarki = (a.giris.vipSira ?? Number.MAX_SAFE_INTEGER)
+                          - (b.giris.vipSira ?? Number.MAX_SAFE_INTEGER);
+      if (vipSiraFarki !== 0) return vipSiraFarki;
+    } else {
+      const zamanFarki = a.efektifZaman - b.efektifZaman;
+      if (zamanFarki !== 0) return zamanFarki;
     }
 
-    const zamanFarki = a.efektifZaman - b.efektifZaman;
-    if (zamanFarki !== 0) return zamanFarki;
+    const girisFarki = a.giris.girisZamani - b.giris.girisZamani;
+    if (girisFarki !== 0) return girisFarki;
 
-    return a.giris.girisZamani - b.giris.girisZamani;
+    return a.giris.oyuncuId.localeCompare(b.giris.oyuncuId);
   });
 
   return hesaplanmis.map((h, i) => ({

@@ -64,4 +64,14 @@ describe('cikisiDegerlendir', () => {
     });
     expect(erken.gecCikis).toBe(false);
   });
+
+  it('pencere sifir saatte mac zamaninda ve sonrasinda cikis gec sayilir', () => {
+    const sonuc = cikisiDegerlendir({
+      simdi: MAC,
+      macZamani: MAC,
+      cikisPenceresiSaat: 0,
+      gecCikisCezasiSn: 8,
+    });
+    expect(sonuc.gecCikis).toBe(true);
+  });
 });
