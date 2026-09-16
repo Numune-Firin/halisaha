@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server';
-import { oturumuTazele } from '@/lib/supabase/middleware';
+import { refreshSession } from '@/lib/supabase/middleware';
 
 export async function middleware(request: NextRequest) {
-  return oturumuTazele(request);
+  return refreshSession(request);
 }
 
 export const config = {

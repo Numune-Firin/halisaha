@@ -1,8 +1,8 @@
 -- Kesin kadroyu tek islemde yazar: eski kadroyu siler, yenisini ekler,
--- maci kadro_kesin durumuna gecirir. Ucu birden basarili olur ya da hicbiri olmaz.
+-- maci kadrosu kesinlesmis duruma gecirir. Ucu birden basarili olur ya da hicbiri olmaz.
 -- Yetki kontrolu fonksiyonun icinde; authenticated role acik olmasi guvenli.
-create or replace function public.kadroyu_kesinlestir(
-  p_mac_id uuid, p_oyuncular uuid[]
+create or replace function public.lock_squad(
+  p_match_id uuid, p_player_ids uuid[]
 ) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -10,20 +10,20 @@ begin
     raise exception 'Yetkisiz';
   end if;
 
-  if not exists (select 1 from matches where id = p_mac_id) then
+  if not exists (select 1 from matches where id = p_match_id) then
     raise exception 'Mac bulunamadi';
   end if;
 
-  delete from match_squad where mac_id = p_mac_id;
+  delete from match_squad where match_id = p_match_id;
 
-  if array_length(p_oyuncular, 1) is not null then
-    insert into match_squad (mac_id, oyuncu_id)
-    select p_mac_id, unnest(p_oyuncular);
+  if array_length(p_player_ids, 1) is not null then
+    insert into match_squad (match_id, player_id)
+    select p_match_id, unnest(p_player_ids);
   end if;
 
-  update matches set durum = 'kadro_kesin' where id = p_mac_id;
+  update matches set status = 'squad_locked' where id = p_match_id;
 end;
 $$;
 
-revoke all on function public.kadroyu_kesinlestir(uuid, uuid[]) from public;
-grant execute on function public.kadroyu_kesinlestir(uuid, uuid[]) to authenticated;
+revoke all on function public.lock_squad(uuid, uuid[]) from public;
+grant execute on function public.lock_squad(uuid, uuid[]) to authenticated;

@@ -1,26 +1,26 @@
-export type Mevki = 'kaleci' | 'defans' | 'orta_saha' | 'forvet';
+export type Position = 'goalkeeper' | 'defender' | 'midfielder' | 'forward';
 
-export type GirisTipi = 'vip' | 'oncelikli' | 'normal';
+export type EntryType = 'vip' | 'priority' | 'standard';
 
 /** Bir oyuncunun tek bir maca ait anket giris kaydi. Zamanlar epoch milisaniye. */
-export interface AnketGirisi {
-  oyuncuId: string;
-  tip: GirisTipi;
+export interface PollEntry {
+  playerId: string;
+  entryType: EntryType;
   /** Sunucu saatiyle yazilan gercek giris zamani */
-  girisZamani: number;
+  enteredAt: number;
   /** Uygulanan toplam ofset. Pozitif ceza, negatif odul. */
-  ofsetSn: number;
-  /** Yalnizca tip === 'vip' icin dolu: admin'in verdigi sira */
-  vipSira: number | null;
+  offsetSeconds: number;
+  /** Yalnizca entryType === 'vip' icin dolu: admin'in verdigi sira */
+  vipRank: number | null;
   /** Dolu ise oyuncu anketten cikmistir, listede yer almaz */
-  cikisZamani: number | null;
+  withdrawnAt: number | null;
 }
 
-export interface SiraliOyuncu {
-  oyuncuId: string;
-  tip: GirisTipi;
+export interface RankedPlayer {
+  playerId: string;
+  entryType: EntryType;
   /** 1'den baslar */
-  sira: number;
-  konum: 'kadro' | 'yedek';
-  efektifZaman: number;
+  rank: number;
+  placement: 'squad' | 'reserve';
+  effectiveTime: number;
 }

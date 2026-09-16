@@ -1,90 +1,90 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { sunucuIstemcisi } from '@/lib/supabase/server';
-import { adminGerekli } from '@/lib/supabase/adminKontrol';
+import { createServerSupabase } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/requireAdmin';
 
-export async function uyeyiOnayla(oyuncuId: string) {
-  await adminGerekli();
-  const supabase = await sunucuIstemcisi();
-  await supabase.from('profiles').update({ durum: 'aktif' }).eq('id', oyuncuId);
+export async function approveMember(playerId: string) {
+  await requireAdmin();
+  const supabase = await createServerSupabase();
+  await supabase.from('profiles').update({ status: 'active' }).eq('id', playerId);
   revalidatePath('/admin');
 }
 
-export async function anketAc(formData: FormData) {
-  await adminGerekli();
-  const supabase = await sunucuIstemcisi();
+export async function openPoll(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createServerSupabase();
 
   // "Sonuc yok" (aktif sezon yok / settings satiri yok) mesru bir durum olabilir
   // ve maybeSingle() ile sessizce null'a dusulur; ama sorgunun kendisi hata
   // verirse (ag, izin, vs.) bu farkli bir durumdur ve fark edilmeden sabit
-  // varsayilanlara / sezon_id: null'a dusmek yerine firlatilmalidir — aksi
+  // varsayilanlara / season_id: null'a dusmek yerine firlatilmalidir — aksi
   // halde aktif bir sezon varken sezona baglanmamis bir mac sessizce olusabilir.
-  const { data: ayar, error: ayarHata } = await supabase.from('settings').select('*').maybeSingle();
-  if (ayarHata) throw new Error(ayarHata.message);
+  const { data: settings, error: settingsError } = await supabase.from('settings').select('*').maybeSingle();
+  if (settingsError) throw new Error(settingsError.message);
 
-  const { data: sezon, error: sezonHata } = await supabase
+  const { data: season, error: seasonError } = await supabase
     .from('seasons')
     .select('id')
-    .eq('aktif', true)
+    .eq('is_active', true)
     .maybeSingle();
-  if (sezonHata) throw new Error(sezonHata.message);
+  if (seasonError) throw new Error(seasonError.message);
 
-  const { error: insertHata } = await supabase.from('matches').insert({
-    mac_zamani: formData.get('macZamani') as string,
-    saha: (formData.get('saha') as string) ?? '',
-    sezon_id: sezon?.id ?? null,
-    kadro_boyutu: Number(formData.get('kadroBoyutu') ?? ayar?.kadro_boyutu ?? 14),
-    kisi_basi_ucret: Number(formData.get('kisiBasiUcret') ?? ayar?.kisi_basi_ucret ?? 0),
-    cikis_penceresi_saat: Number(formData.get('cikisPenceresi') ?? ayar?.cikis_penceresi_saat ?? 20),
-    gec_cikis_cezasi_sn: Number(formData.get('gecCikisCezasi') ?? ayar?.gec_cikis_cezasi_sn ?? 8),
-    son_odeme_gunu: (formData.get('sonOdemeGunu') as string) || null,
+  const { error: insertError } = await supabase.from('matches').insert({
+    kickoff_at: formData.get('kickoffAt') as string,
+    venue: (formData.get('venue') as string) ?? '',
+    season_id: season?.id ?? null,
+    squad_size: Number(formData.get('squadSize') ?? settings?.squad_size ?? 14),
+    fee_per_player: Number(formData.get('feePerPlayer') ?? settings?.fee_per_player ?? 0),
+    withdrawal_window_hours: Number(formData.get('withdrawalWindow') ?? settings?.withdrawal_window_hours ?? 20),
+    late_withdrawal_penalty_seconds: Number(formData.get('lateWithdrawalPenalty') ?? settings?.late_withdrawal_penalty_seconds ?? 8),
+    payment_due_on: (formData.get('paymentDueOn') as string) || null,
   });
-  if (insertHata) throw new Error(insertHata.message);
+  if (insertError) throw new Error(insertError.message);
 
   revalidatePath('/admin');
 }
 
-/** VIP olarak dogrudan kadroya ekler. vipSira mevcut VIP sayisinin bir fazlasidir. */
-export async function vipEkle(macId: string, oyuncuId: string) {
-  await adminGerekli();
-  const supabase = await sunucuIstemcisi();
+/** VIP olarak dogrudan kadroya ekler. vipRank mevcut VIP sayisinin bir fazlasidir. */
+export async function addVip(matchId: string, playerId: string) {
+  await requireAdmin();
+  const supabase = await createServerSupabase();
 
   const { count } = await supabase
     .from('match_entries')
     .select('id', { count: 'exact', head: true })
-    .eq('mac_id', macId)
-    .eq('tip', 'vip');
+    .eq('match_id', matchId)
+    .eq('entry_type', 'vip');
 
   await supabase.from('match_entries').upsert(
-    { mac_id: macId, oyuncu_id: oyuncuId, tip: 'vip', vip_sira: (count ?? 0) + 1, cikis_zamani: null },
-    { onConflict: 'mac_id,oyuncu_id' },
+    { match_id: matchId, player_id: playerId, entry_type: 'vip', vip_rank: (count ?? 0) + 1, withdrawn_at: null },
+    { onConflict: 'match_id,player_id' },
   );
 
-  revalidatePath(`/anket/${macId}`);
+  revalidatePath(`/poll/${matchId}`);
   revalidatePath('/admin');
 }
 
 /** Ankete girmis bir oyuncuyu oncelikli katmanina tasir. */
-export async function oncelikliYap(macId: string, oyuncuId: string) {
-  await adminGerekli();
-  const supabase = await sunucuIstemcisi();
+export async function markPriority(matchId: string, playerId: string) {
+  await requireAdmin();
+  const supabase = await createServerSupabase();
   const { data, error } = await supabase
     .from('match_entries')
-    .update({ tip: 'oncelikli' })
-    .eq('mac_id', macId)
-    .eq('oyuncu_id', oyuncuId)
+    .update({ entry_type: 'priority' })
+    .eq('match_id', matchId)
+    .eq('player_id', playerId)
     .select();
   if (error) throw new Error(error.message);
   if ((data ?? []).length === 0) throw new Error('Oyuncu bu ankette bulunamadı');
-  revalidatePath(`/anket/${macId}`);
+  revalidatePath(`/poll/${matchId}`);
 }
 
 /** Pozitif saniye ceza, negatif odul. Oyuncunun katildigi ilk ankette uygulanir. */
-export async function cezaVer(oyuncuId: string, saniye: number, sebep: string) {
-  await adminGerekli();
-  if (saniye === 0) throw new Error('Sıfır ceza yazılamaz');
-  const supabase = await sunucuIstemcisi();
-  await supabase.from('adjustments').insert({ oyuncu_id: oyuncuId, saniye, sebep });
+export async function addAdjustment(playerId: string, seconds: number, reason: string) {
+  await requireAdmin();
+  if (seconds === 0) throw new Error('Sıfır ceza yazılamaz');
+  const supabase = await createServerSupabase();
+  await supabase.from('adjustments').insert({ player_id: playerId, seconds, reason });
   revalidatePath('/admin');
 }

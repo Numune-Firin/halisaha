@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function sunucuIstemcisi() {
+export async function createServerSupabase() {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -24,24 +24,24 @@ export async function sunucuIstemcisi() {
   );
 }
 
-export type Profil = {
+export type Profile = {
   id: string;
-  ad: string;
-  rol: 'admin' | 'oyuncu';
-  durum: 'onay_bekliyor' | 'aktif' | 'pasif';
+  full_name: string;
+  role: 'admin' | 'player';
+  status: 'pending' | 'active' | 'inactive';
 };
 
 /** Oturum acmis kullanicinin profili. Oturum yoksa null. */
-export async function aktifProfil(): Promise<Profil | null> {
-  const supabase = await sunucuIstemcisi();
+export async function getCurrentProfile(): Promise<Profile | null> {
+  const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data } = await supabase
     .from('profiles')
-    .select('id, ad, rol, durum')
+    .select('id, full_name, role, status')
     .eq('id', user.id)
     .single();
 
-  return (data as Profil) ?? null;
+  return (data as Profile) ?? null;
 }

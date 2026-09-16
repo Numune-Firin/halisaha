@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-export async function oturumuTazele(request: NextRequest) {
+export async function refreshSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

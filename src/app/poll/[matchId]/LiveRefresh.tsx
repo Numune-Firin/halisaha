@@ -2,31 +2,31 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { tarayiciIstemcisi } from '@/lib/supabase/client';
+import { createBrowserSupabase } from '@/lib/supabase/client';
 
 /**
  * match_entries tablosunda bu maca ait bir degisiklik oldugunda sayfayi tazeler.
  * Siralamayi yeniden hesaplamaz; sunucudan yeni listeyi ister.
  */
-export function CanliYenile({ macId }: { macId: string }) {
+export function LiveRefresh({ matchId }: { matchId: string }) {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = tarayiciIstemcisi();
+    const supabase = createBrowserSupabase();
 
-    const kanal = supabase
-      .channel(`anket-${macId}`)
+    const channel = supabase
+      .channel(`poll-${matchId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'match_entries', filter: `mac_id=eq.${macId}` },
+        { event: '*', schema: 'public', table: 'match_entries', filter: `match_id=eq.${matchId}` },
         () => router.refresh(),
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(kanal);
+      supabase.removeChannel(channel);
     };
-  }, [macId, router]);
+  }, [matchId, router]);
 
   return null;
 }

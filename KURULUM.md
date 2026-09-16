@@ -80,7 +80,7 @@ Proje klasöründe `.env.example` adında bir dosya var — bu, hangi bilgilerin
 
 Bu, rehberin en zahmetli kısmı — dürüst olmak gerekirse birkaç panel arasında gidip gelmen gerekecek. Sabırlı ol, her adımı sırayla yap.
 
-> **Bu adım gözünü korkutuyorsa:** Supabase'de Email (e-posta ile giriş) sağlayıcısı zaten açıktır, bu adımı şimdilik atlayıp uygulamayı e-posta girişiyle deneyebilirsin. Ama şunu bil: uygulamanın giriş ekranı şu an **sadece "Google ile giriş yap" düğmesi** olacak şekilde kodlanmış (bkz. `src/app/giris/page.tsx`), yani bu adımı atlarsan giriş ekranı çalışmaz — bu adımı er ya da geç tamamlaman gerekiyor.
+> **Bu adım gözünü korkutuyorsa:** Supabase'de Email (e-posta ile giriş) sağlayıcısı zaten açıktır, bu adımı şimdilik atlayıp uygulamayı e-posta girişiyle deneyebilirsin. Ama şunu bil: uygulamanın giriş ekranı şu an **sadece "Google ile giriş yap" düğmesi** olacak şekilde kodlanmış (bkz. `src/app/login/page.tsx`), yani bu adımı atlarsan giriş ekranı çalışmaz — bu adımı er ya da geç tamamlaman gerekiyor.
 
 ### 5a. Google Cloud Console'da OAuth istemcisi oluşturma
 
@@ -150,7 +150,7 @@ Anket ekranında biri girip çıktığında listenin diğer herkesin ekranında 
 1. Supabase panelinde **Table Editor**'e git, `profiles` tablosunu aç. Kendi satırını (adın/e-postan ile eşleşen) bul ve `id` sütunundaki değeri kopyala (uzun bir kod, `xxxxxxxx-xxxx-...` şeklinde).
 2. **SQL Editor**'e git, yeni bir sorgu aç, şunu yapıştır ve `<kendi_id>` yerine kopyaladığın id'yi yaz:
    ```sql
-   update profiles set durum = 'aktif', rol = 'admin' where id = '<kendi_id>';
+   update profiles set status = 'active', role = 'admin' where id = '<kendi_id>';
    ```
 3. **Run** de.
 4. Uygulamaya dön, sayfayı yenile (F5) — artık ana sayfayı ve sağ üstte "Admin" bağlantısını görmelisin.
@@ -164,7 +164,7 @@ Sezon açman zorunlu değil (maç oluştururken sezon seçilmezse maç sezonsuz 
 Supabase **SQL Editor**'de:
 
 ```sql
-insert into seasons (ad, baslangic, aktif)
+insert into seasons (name, starts_on, is_active)
 values ('2026 Sezonu', current_date, true);
 ```
 
@@ -220,7 +220,7 @@ Sırayla dene, her adım bir öncekine bağlı:
 5. **Ankete girme**: Ana sayfada yeni açılan maça tıkla, "ankete gir" düğmesine bas, listeye eklendiğini gör.
 6. **Canlı güncelleme**: İkinci bir hesapla (farklı bir tarayıcı ya da gizli sekme ile başka bir Google hesabıyla) giriş yap, o hesap da ankete girsin — ilk ekranın sayfayı yenilemeden otomatik güncellendiğini gör.
 7. **Anketten çıkma**: "çık" düğmesine bas, listeden çıktığını gör.
-8. **Kadro kesinleştirme**: Admin panelinden ilgili maçın "kadro" sayfasına git (`/anket/<maçId>/kadro`), sahada olacak oyuncuları işaretleyip kaydet, maçın durumunun değiştiğini gör.
+8. **Kadro kesinleştirme**: Admin panelinden ilgili maçın "kadro" sayfasına git (`/poll/<maçId>/squad`), sahada olacak oyuncuları işaretleyip kaydet, maçın durumunun değiştiğini gör.
 
 ---
 
@@ -231,14 +231,14 @@ Sırayla dene, her adım bir öncekine bağlı:
 - Çözüm: Admin ile (veya 9. bölümdeki SQL komutuyla) hesabını aktif yap; sayfayı yenile, gerekirse çıkış yapıp tekrar giriş yap.
 
 **"Anket kapalı" hatası**
-- Sebep: Girmeye çalıştığın maç `anket_acik` durumunda değil — anket henüz açılmamış, ya da zaten kadrosu kesinleştirilmiş (`kadro_kesin`) ya da iptal edilmiş olabilir.
+- Sebep: Girmeye çalıştığın maç `poll_open` durumunda değil — anket henüz açılmamış, ya da zaten kadrosu kesinleştirilmiş (`squad_locked`) ya da iptal edilmiş olabilir.
 - Çözüm: Admin panelinden maçın durumunu kontrol et; gerekiyorsa yeni bir anket aç.
 
 **"Ankette açık kayıt yok" hatası**
 - Sebep: Anketten çıkmaya çalışıyorsun ama sistemde senin için zaten kapanmış (çıkış zamanı işlenmiş) bir kayıt var — muhtemelen başka bir sekmeden/cihazdan zaten çıkmışsın.
 - Çözüm: Sayfayı yenile, güncel durumunu (ankette misin değil misin) kontrol et.
 
-**Giriş sonrası `/giris?hata=1` adresine dönüyor**
+**Giriş sonrası `/login?error=1` adresine dönüyor**
 - Sebep: Google ile giriş tamamlanamadı. En sık nedenler: Supabase'deki Redirect URLs listesinde kullandığın adresin (`http://localhost:3000/auth/callback` ya da yayındaki gerçek adresin) eksik olması; Google Cloud Console'daki Authorized redirect URI'nin Supabase'in verdiği callback adresiyle birebir eşleşmemesi; ya da `.env.local` / Vercel'deki ortam değişkenlerinden birinin yanlış kopyalanmış olması (fazladan boşluk, eksik karakter).
 - Çözüm: 5. ve 6. (yayında ise 11.) bölümdeki adresleri tekrar kontrol et, birebir eşleştiklerinden emin ol.
 

@@ -1,17 +1,17 @@
 -- Enum tipleri
-create type mevki_t      as enum ('kaleci','defans','orta_saha','forvet');
-create type rol_t        as enum ('admin','oyuncu');
-create type uye_durum_t  as enum ('onay_bekliyor','aktif','pasif');
-create type mac_durum_t  as enum ('anket_acik','kadro_kesin','oynandi','tamamlandi');
-create type giris_tipi_t as enum ('vip','oncelikli','normal');
+create type position_t      as enum ('goalkeeper','defender','midfielder','forward');
+create type role_t          as enum ('admin','player');
+create type member_status_t as enum ('pending','active','inactive');
+create type match_status_t  as enum ('poll_open','squad_locked','played','completed');
+create type entry_type_t    as enum ('vip','priority','standard');
 
 -- Uyeler
 create table profiles (
   id         uuid primary key references auth.users on delete cascade,
-  ad         text not null default '',
-  mevki      mevki_t,
-  rol        rol_t not null default 'oyuncu',
-  durum      uye_durum_t not null default 'onay_bekliyor',
+  full_name  text not null default '',
+  position   position_t,
+  role       role_t not null default 'player',
+  status     member_status_t not null default 'pending',
   avatar_url text,
   created_at timestamptz not null default now()
 );
@@ -19,80 +19,80 @@ create table profiles (
 -- Sezonlar
 create table seasons (
   id         uuid primary key default gen_random_uuid(),
-  ad         text not null,
-  baslangic  date not null,
-  bitis      date,
-  aktif      boolean not null default true,
+  name       text not null,
+  starts_on  date not null,
+  ends_on    date,
+  is_active  boolean not null default true,
   created_at timestamptz not null default now()
 );
 -- Ayni anda yalnizca bir aktif sezon olabilir
-create unique index seasons_tek_aktif on seasons (aktif) where aktif;
+create unique index seasons_single_active on seasons (is_active) where is_active;
 
 -- Maclar
 create table matches (
-  id                  uuid primary key default gen_random_uuid(),
-  sezon_id            uuid references seasons(id) on delete set null,
-  mac_zamani          timestamptz not null,
-  saha                text not null default '',
-  durum               mac_durum_t not null default 'anket_acik',
-  kadro_boyutu        int not null default 14 check (kadro_boyutu between 2 and 40),
-  kisi_basi_ucret     numeric(10,2) not null default 0 check (kisi_basi_ucret >= 0),
-  cikis_penceresi_saat int not null default 20 check (cikis_penceresi_saat >= 0),
-  gec_cikis_cezasi_sn int not null default 8 check (gec_cikis_cezasi_sn >= 0),
-  anket_acilis        timestamptz not null default now(),
-  son_odeme_gunu      date,
-  siyah_skor          int check (siyah_skor >= 0),
-  beyaz_skor          int check (beyaz_skor >= 0),
-  created_at          timestamptz not null default now()
+  id                              uuid primary key default gen_random_uuid(),
+  season_id                       uuid references seasons(id) on delete set null,
+  kickoff_at                      timestamptz not null,
+  venue                           text not null default '',
+  status                          match_status_t not null default 'poll_open',
+  squad_size                      int not null default 14 check (squad_size between 2 and 40),
+  fee_per_player                  numeric(10,2) not null default 0 check (fee_per_player >= 0),
+  withdrawal_window_hours         int not null default 20 check (withdrawal_window_hours >= 0),
+  late_withdrawal_penalty_seconds int not null default 8 check (late_withdrawal_penalty_seconds >= 0),
+  poll_opened_at                  timestamptz not null default now(),
+  payment_due_on                  date,
+  black_score                     int check (black_score >= 0),
+  white_score                     int check (white_score >= 0),
+  created_at                      timestamptz not null default now()
 );
 
 -- Ankete giris kayitlari (VIP dahil)
 create table match_entries (
-  id            uuid primary key default gen_random_uuid(),
-  mac_id        uuid not null references matches(id) on delete cascade,
-  oyuncu_id     uuid not null references profiles(id) on delete cascade,
-  tip           giris_tipi_t not null default 'normal',
-  giris_zamani  timestamptz not null default now(),
-  ofset_sn      int not null default 0,
-  vip_sira      int,
-  cikis_zamani  timestamptz,
-  gec_cikis     boolean not null default false,
-  unique (mac_id, oyuncu_id)
+  id                   uuid primary key default gen_random_uuid(),
+  match_id             uuid not null references matches(id) on delete cascade,
+  player_id            uuid not null references profiles(id) on delete cascade,
+  entry_type           entry_type_t not null default 'standard',
+  entered_at           timestamptz not null default now(),
+  offset_seconds       int not null default 0,
+  vip_rank             int,
+  withdrawn_at         timestamptz,
+  is_late_withdrawal   boolean not null default false,
+  unique (match_id, player_id)
 );
-create index match_entries_mac_idx on match_entries (mac_id);
+create index match_entries_match_idx on match_entries (match_id);
 
 -- Giris zamani her zaman sunucu saatiyle yazilir; istemciden gelen deger yok sayilir
-create or replace function match_entries_giris_zamani_zorla()
+create or replace function force_entry_timestamp()
 returns trigger language plpgsql as $$
 begin
-  new.giris_zamani := now();
+  new.entered_at := now();
   return new;
 end;
 $$;
 
-create trigger match_entries_giris_zamani_trg
+create trigger match_entries_entered_at_trg
   before insert on match_entries
-  for each row execute function match_entries_giris_zamani_zorla();
+  for each row execute function force_entry_timestamp();
 
 -- Ceza / odul kayitlari. saniye > 0 ceza, < 0 odul
 create table adjustments (
-  id                  uuid primary key default gen_random_uuid(),
-  oyuncu_id           uuid not null references profiles(id) on delete cascade,
-  saniye              int not null check (saniye <> 0),
-  sebep               text not null default '',
-  kaynak_mac_id       uuid references matches(id) on delete set null,
-  kullanildigi_mac_id uuid references matches(id) on delete set null,
-  created_at          timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  player_id         uuid not null references profiles(id) on delete cascade,
+  seconds           int not null check (seconds <> 0),
+  reason            text not null default '',
+  source_match_id   uuid references matches(id) on delete set null,
+  applied_match_id  uuid references matches(id) on delete set null,
+  created_at        timestamptz not null default now()
 );
-create index adjustments_bekleyen_idx
-  on adjustments (oyuncu_id) where kullanildigi_mac_id is null;
+create index adjustments_pending_idx
+  on adjustments (player_id) where applied_match_id is null;
 
 -- Varsayilan ayarlar (tek satir)
 create table settings (
-  id                   boolean primary key default true check (id),
-  kadro_boyutu         int not null default 14,
-  kisi_basi_ucret      numeric(10,2) not null default 0,
-  cikis_penceresi_saat int not null default 20,
-  gec_cikis_cezasi_sn  int not null default 8
+  id                              boolean primary key default true check (id),
+  squad_size                      int not null default 14,
+  fee_per_player                  numeric(10,2) not null default 0,
+  withdrawal_window_hours         int not null default 20,
+  late_withdrawal_penalty_seconds int not null default 8
 );
 insert into settings default values;

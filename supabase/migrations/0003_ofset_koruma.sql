@@ -1,21 +1,21 @@
--- Oyuncu kendi anket satirini guncellerken yalnizca cikis_zamani alanini degistirebilir.
--- Admin (service_role veya rol='admin') bu kisitin disindadir.
-create or replace function match_entries_oyuncu_korumasi()
+-- Oyuncu kendi anket satirini guncellerken yalnizca cikis zamani alanini degistirebilir.
+-- Admin (service_role veya rolu 'admin' olan uye) bu kisitin disindadir.
+create or replace function guard_player_entry_fields()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  -- Sistem RPC'leri (ankete_gir, anketten_cik) islem basinda app.sistem_islemi
+  -- Sistem RPC'leri (join_poll, leave_poll) islem basinda app.system_operation
   -- bayragini set eder ve bu kisittan muaf tutulur. Bayrak islem sonunda duser.
   if public.is_admin()
-     or coalesce(current_setting('app.sistem_islemi', true), '0') = '1' then
+     or coalesce(current_setting('app.system_operation', true), '0') = '1' then
     return new;
   end if;
 
-  if new.tip <> old.tip
-     or new.ofset_sn <> old.ofset_sn
-     or new.vip_sira is distinct from old.vip_sira
-     or new.giris_zamani <> old.giris_zamani
-     or new.oyuncu_id <> old.oyuncu_id
-     or new.mac_id <> old.mac_id then
+  if new.entry_type <> old.entry_type
+     or new.offset_seconds <> old.offset_seconds
+     or new.vip_rank is distinct from old.vip_rank
+     or new.entered_at <> old.entered_at
+     or new.player_id <> old.player_id
+     or new.match_id <> old.match_id then
     raise exception 'Bu alanlari yalnizca yonetici degistirebilir';
   end if;
 
@@ -23,6 +23,6 @@ begin
 end;
 $$;
 
-create trigger match_entries_oyuncu_korumasi_trg
+create trigger match_entries_guard_trg
   before update on match_entries
-  for each row execute function match_entries_oyuncu_korumasi();
+  for each row execute function guard_player_entry_fields();
