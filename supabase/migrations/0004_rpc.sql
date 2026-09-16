@@ -1,3 +1,10 @@
+-- Eski imzalar (brief'in ilk halinde ankete_gir(uuid, int) idi) once dusuruluyor.
+-- create or replace yalnizca ayni imzali fonksiyonun govdesini degistirir; farkli
+-- imzali eski bir surum varsa PUBLIC calistirma yetkisiyle yerinde kalir ve
+-- asagidaki revoke/grant satirlari onu hedeflemez. Once temizle, sonra yarat.
+drop function if exists public.ankete_gir(uuid, int);
+drop function if exists public.anketten_cik(uuid, uuid, boolean, int);
+
 -- Ankete giris. Ilk giris ve cikip tekrar girme ayni yoldan gecer.
 -- Tekrar giriste giris zamani sifirlanir (yeni sira), tip korunur:
 -- oncelikli oyuncu tekrar girdiginde yine oncelikli katmaninda kalir.
@@ -31,6 +38,12 @@ begin
        and oyuncu_id = p_oyuncu_id
        and kullanildigi_mac_id is null;
   end if;
+
+  -- Bayrak islem kapsamli (set_config'in ucuncu parametresi true = local).
+  -- Yine de acikca sifirlanir: bu fonksiyon ileride baska bir plpgsql
+  -- fonksiyonundan cagrilirsa, cagiranin geri kalani ayni islemde 0003'teki
+  -- alan korumasindan sessizce muaf kalmasin.
+  perform set_config('app.sistem_islemi', '0', true);
 end;
 $$;
 
@@ -40,17 +53,32 @@ create or replace function public.anketten_cik(
   p_mac_id uuid, p_oyuncu_id uuid, p_gec_cikis boolean, p_ceza_sn int
 ) returns void
 language plpgsql security definer set search_path = public as $$
+declare
+  v_n int;
 begin
+  if not exists (
+    select 1 from matches where id = p_mac_id and durum = 'anket_acik'
+  ) then
+    raise exception 'Anket kapali';
+  end if;
+
   perform set_config('app.sistem_islemi', '1', true);
 
   update match_entries
      set cikis_zamani = now(), gec_cikis = p_gec_cikis
    where mac_id = p_mac_id and oyuncu_id = p_oyuncu_id and cikis_zamani is null;
 
+  get diagnostics v_n = row_count;
+  if v_n = 0 then
+    raise exception 'Ankette acik kayit yok';
+  end if;
+
   if p_gec_cikis and p_ceza_sn > 0 then
     insert into adjustments (oyuncu_id, saniye, sebep, kaynak_mac_id)
     values (p_oyuncu_id, p_ceza_sn, 'Geç çıkış', p_mac_id);
   end if;
+
+  perform set_config('app.sistem_islemi', '0', true);
 end;
 $$;
 

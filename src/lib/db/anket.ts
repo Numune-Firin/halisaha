@@ -28,18 +28,26 @@ export async function anketiGetir(
 ): Promise<{ mac: MacOzet; satirlar: AnketSatiri[] } | null> {
   const supabase = await sunucuIstemcisi();
 
-  const { data: macRow } = await supabase
+  const { data: macRow, error: macHata } = await supabase
     .from('matches')
     .select('id, mac_zamani, saha, durum, kadro_boyutu, anket_acilis, cikis_penceresi_saat, gec_cikis_cezasi_sn')
     .eq('id', macId)
-    .single();
+    .maybeSingle();
 
+  // "Bulunamadi" (satir yok) ile "sorgu hata verdi" ayri davranir: ilki null
+  // dondurup notFound()'a birakilir, ikincisi firlatilir. Aksi halde gecici
+  // bir okuma hatasi sessizce "mac yok" gibi gorunup yanlis sayfaya duser.
+  if (macHata) throw new Error(macHata.message);
   if (!macRow) return null;
 
-  const { data: girisRows } = await supabase
+  const { data: girisRows, error: girisHata } = await supabase
     .from('match_entries')
     .select('oyuncu_id, tip, giris_zamani, ofset_sn, vip_sira, cikis_zamani, profiles(ad, mevki)')
     .eq('mac_id', macId);
+
+  // Ayni gerekce: bu sorgu hata verirse rows'u sessizce [] yapmak, ankette
+  // olan bir oyuncuya "Ankete gir" gosterip sirasini kaybettirebilir.
+  if (girisHata) throw new Error(girisHata.message);
 
   const rows = girisRows ?? [];
 

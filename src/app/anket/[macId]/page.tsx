@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { aktifProfil } from '@/lib/supabase/server';
 import { anketiGetir } from '@/lib/db/anket';
 import { AnketListesi } from './AnketListesi';
-import { anketeGir, anketenCik } from './actions';
+import { anketeGirVeyaCik } from './actions';
 
 export default async function AnketSayfasi({
   params,
@@ -35,8 +35,10 @@ export default async function AnketSayfasi({
         <form
           action={async () => {
             'use server';
-            if (kendisiListede) await anketenCik(macId);
-            else await anketeGir(macId);
+            // Karar render aninda yakalanan kendisiListede'ye gore degil,
+            // anketeGirVeyaCik'in o an veritabanindan okudugu duruma gore
+            // verilir; buton metni yalnizca gorsel amacli render anini yansitir.
+            await anketeGirVeyaCik(macId);
           }}
         >
           <button

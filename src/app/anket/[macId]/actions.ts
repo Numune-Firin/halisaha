@@ -10,8 +10,11 @@ import { toplamOfset, tuketilecekIdler } from '@/lib/poll/ofset';
  * Ankete giris. Bekleyen ceza/odulleri toplayip ofset olarak yazar ve tuketir.
  * Giris zamanini veritabani tetikleyicisi sunucu saatiyle yazar.
  *
- * Kimlik dogrulamasi burada (aktifProfil) yapilir; bekleyen ceza/odul kaydi
- * RLS altindaki normal istemciyle okunur (yalnizca kendi kayitlarini gorebilir).
+ * Kimlik dogrulamasi burada (aktifProfil) yapilir. Bekleyen ceza/odul kaydi
+ * normal istemciyle okunur; `adjustments_select` politikasi `is_aktif_uye()`
+ * ile herkese aciktir (RLS burada satirlari baskasinin oyuncu_id'sinden
+ * gizlemez) — gercek koruma asagidaki `.eq('oyuncu_id', profil.id)` filtresi
+ * ve RPC'nin kendi `p_oyuncu_id` parametresine gore tekrar filtrelemesidir.
  * Yazim, kuralca hesaplanmis degerlerle, servis anahtarli istemci uzerinden
  * yalnizca service_role'a acik olan RPC'ye tek cagriyla yapilir.
  */
@@ -80,4 +83,32 @@ export async function anketenCik(macId: string) {
   if (error) throw new Error(error.message);
 
   revalidatePath(`/anket/${macId}`);
+}
+
+/**
+ * Butonun tek eylemi: hangi yonde islem yapilacagina render aninda yakalanan
+ * degil, veritabaninin o anki durumuna bakarak karar verir. Sayfa render
+ * edildikten sonra oyuncu baska bir sekmeden/cihazdan zaten girmis/cikmis
+ * olabilir ya da butona iki kez tiklayabilir; bu durumda eski "kendisiListede"
+ * bilgisine gore dallanmak yanlis RPC'yi cagirip (orn. zaten ankette olan
+ * birini tekrar "girise" sokup sirasini sifirlayarak) veri bozabilirdi.
+ */
+export async function anketeGirVeyaCik(macId: string) {
+  const profil = await aktifProfil();
+  if (!profil || profil.durum !== 'aktif') throw new Error('Yetkisiz');
+
+  const supabase = await sunucuIstemcisi();
+
+  const { data: kayit, error } = await supabase
+    .from('match_entries')
+    .select('cikis_zamani')
+    .eq('mac_id', macId)
+    .eq('oyuncu_id', profil.id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+
+  const acikKaydiVar = !!kayit && kayit.cikis_zamani === null;
+
+  if (acikKaydiVar) await anketenCik(macId);
+  else await anketeGir(macId);
 }
