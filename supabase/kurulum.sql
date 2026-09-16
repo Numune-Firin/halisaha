@@ -454,3 +454,18 @@ revoke all on function public.lock_squad(uuid, uuid[]) from public;
 grant execute on function public.lock_squad(uuid, uuid[]) to authenticated;
 
 
+
+
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0007_realtime.sql
+-- Anket girislerinin canli yayinlanmasi icin Realtime aboneligini acar.
+-- -----------------------------------------------------------------------------
+-- Anket listesinin canli guncellenmesi icin match_entries tablosunu
+-- Supabase Realtime yayinina ekler. Yayinda zaten varsa hata vermez.
+do $$
+begin
+  alter publication supabase_realtime add table public.match_entries;
+exception
+  when duplicate_object then null;
+end;
+$$;
