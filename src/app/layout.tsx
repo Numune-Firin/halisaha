@@ -1,9 +1,15 @@
-import type { Metadata } from "next";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Hali Saha",
-  description: "Hali saha organizasyon uygulamasi",
+export const metadata = {
+  title: 'Halı Saha',
+  description: 'Haftalık halı saha organizasyonu',
+  manifest: '/manifest.json',
+};
+
+export const viewport = {
+  themeColor: '#111111',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
