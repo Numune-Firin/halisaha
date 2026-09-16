@@ -1,5 +1,7 @@
 # Halı Saha Sistemi — Tasarım Dokümanı
 
+> **Adlandirma notu:** Bu belge yazildigi gunku Turkce kod adlandirmasini anlatir. Tanimlayicilar sonradan Ingilizce'ye cevrildi; guncel karsiliklar icin `docs/superpowers/adlandirma-sozlugu.md` dosyasina bak.
+
 Tarih: 2026-09-15
 Durum: Onaylandı, uygulama planı bekliyor
 

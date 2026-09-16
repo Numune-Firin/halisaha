@@ -21,7 +21,7 @@
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- KAYNAK: supabase/migrations/0001_sema.sql
+-- KAYNAK: supabase/migrations/0001_schema.sql
 -- Semayi olusturur: tipler, tablolar (profiles, seasons, matches, match_entries, adjustments, settings) ve tetikleyiciler.
 -- -----------------------------------------------------------------------------
 
@@ -162,7 +162,7 @@ begin
 end;
 $$;
 
-create trigger yeni_kullanici_profili_trg
+create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
@@ -228,7 +228,7 @@ create policy adjustments_all    on adjustments for all    using (is_admin()) wi
 
 
 -- -----------------------------------------------------------------------------
--- KAYNAK: supabase/migrations/0003_ofset_koruma.sql
+-- KAYNAK: supabase/migrations/0003_offset_guard.sql
 -- Kullanicilarin kendi ceza/odul (ofset) degerlerini degistirmesini engelleyen ek koruma kurali.
 -- -----------------------------------------------------------------------------
 
@@ -381,7 +381,7 @@ create policy match_squad_all    on match_squad for all    using (is_admin()) wi
 
 
 -- -----------------------------------------------------------------------------
--- KAYNAK: supabase/migrations/0006_kadro_kesinlestir.sql
+-- KAYNAK: supabase/migrations/0006_lock_squad.sql
 -- Admin'in kadroyu kesinlestirmesini saglayan fonksiyonu tanimlar.
 -- -----------------------------------------------------------------------------
 

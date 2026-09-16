@@ -56,9 +56,12 @@ export default async function AdminPage() {
         <h2 className="mb-2 font-semibold">Maçlar</h2>
         <ul className="flex flex-col gap-1">
           {(matches ?? []).map((m) => (
-            <li key={m.id}>
+            <li key={m.id} className="flex items-center justify-between gap-3">
               <a className="text-blue-600 underline" href={`/poll/${m.id}`}>
                 {new Date(m.kickoff_at as string).toLocaleString('tr-TR')} — {m.venue} ({m.status})
+              </a>
+              <a className="text-blue-600 underline" href={`/poll/${m.id}/squad`}>
+                Kadro
               </a>
             </li>
           ))}
