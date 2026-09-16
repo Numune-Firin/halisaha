@@ -18,6 +18,3 @@ Thumbs.db
 *.tsbuildinfo
 .claude/
 
-# Bu projeye ait olmayan mevcut dosyalar
-*.pdf
-docker-compose.yml
