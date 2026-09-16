@@ -1,4 +1,5 @@
-> Bu sözlükteki çeviri `3c43619` commit'inde uygulandı.
+> Bu sözlükteki çevirinin ana gövdesi `3c43619` commit'inde, kalan
+> tanımlayıcılar ile migration dosya adları `162cdad` commit'inde uygulandı.
 
 # Türkçe → İngilizce Adlandırma Sözlüğü
 
@@ -73,6 +74,7 @@ başlıklar, rozetler, hata mesajlarının kullanıcıya gösterilen hâlleri,
 | `is_aktif_uye()` | `is_active_member()` |
 | `is_admin()` | `is_admin()` (aynı) |
 | `yeni_kullanici_profili()` | `handle_new_user()` |
+| `yeni_kullanici_profili_trg` | `on_auth_user_created` |
 | `match_entries_giris_zamani_zorla()` | `force_entry_timestamp()` |
 | `match_entries_giris_zamani_trg` | `match_entries_entered_at_trg` |
 | `match_entries_oyuncu_korumasi()` | `guard_player_entry_fields()` |
@@ -172,6 +174,14 @@ Alanlar: `oyuncuId`→`playerId` · `tip`→`entryType` · `girisZamani`→`ente
 | `src/lib/db/anket.ts` | `src/lib/db/poll.ts` |
 | `src/app/anket/[macId]/AnketListesi.tsx` | `src/app/poll/[matchId]/PollList.tsx` |
 | `src/app/anket/[macId]/CanliYenile.tsx` | `src/app/poll/[matchId]/LiveRefresh.tsx` |
+| `supabase/migrations/0001_sema.sql` | `supabase/migrations/0001_schema.sql` |
+| `supabase/migrations/0003_ofset_koruma.sql` | `supabase/migrations/0003_offset_guard.sql` |
+| `supabase/migrations/0006_kadro_kesinlestir.sql` | `supabase/migrations/0006_lock_squad.sql` |
+
+Migration dosyalarında sayısal önek korunduğu için çalıştırma sırası değişmez.
+`0002_rls.sql`, `0004_rpc.sql` ve `0005_match_squad.sql` adları zaten İngilizce
+olduğu için değişmedi. `supabase/kurulum.sql` ve `KURULUM.md` adları ise kasıtlı
+olarak Türkçe bırakıldı — bunlar kullanıcıya dönük kurulum ikilisidir.
 
 ## 9. URL yolları
 
