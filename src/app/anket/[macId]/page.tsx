@@ -3,6 +3,7 @@ import { aktifProfil } from '@/lib/supabase/server';
 import { anketiGetir } from '@/lib/db/anket';
 import { AnketListesi } from './AnketListesi';
 import { anketeGirVeyaCik } from './actions';
+import { CanliYenile } from './CanliYenile';
 
 export default async function AnketSayfasi({
   params,
@@ -29,6 +30,7 @@ export default async function AnketSayfasi({
         <p className="text-gray-600">{veri.mac.saha}</p>
       </header>
 
+      <CanliYenile macId={macId} />
       <AnketListesi satirlar={veri.satirlar} />
 
       {veri.mac.durum === 'anket_acik' && (
