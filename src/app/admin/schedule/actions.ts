@@ -8,12 +8,20 @@ import { ensureScheduledMatches } from '@/lib/db/schedule';
 function readScheduleForm(formData: FormData) {
   const weekday = Number(formData.get('weekday'));
   const startTime = ((formData.get('startTime') as string) ?? '').trim();
+  const pollWeekday = Number(formData.get('pollWeekday'));
+  const pollOpenTime = ((formData.get('pollOpenTime') as string) ?? '').trim();
 
   if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
-    throw new Error('Geçerli bir gün seç');
+    throw new Error('Geçerli bir maç günü seç');
   }
   if (!/^\d{2}:\d{2}(:\d{2})?$/.test(startTime)) {
-    throw new Error('Geçerli bir saat gir');
+    throw new Error('Geçerli bir maç saati gir');
+  }
+  if (!Number.isInteger(pollWeekday) || pollWeekday < 1 || pollWeekday > 7) {
+    throw new Error('Geçerli bir anket günü seç');
+  }
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(pollOpenTime)) {
+    throw new Error('Geçerli bir anket saati gir');
   }
 
   return {
@@ -24,7 +32,8 @@ function readScheduleForm(formData: FormData) {
     fee_per_player: Number(formData.get('feePerPlayer') ?? 0),
     withdrawal_window_hours: Number(formData.get('withdrawalWindow') ?? 20),
     late_withdrawal_penalty_seconds: Number(formData.get('lateWithdrawalPenalty') ?? 8),
-    open_days_before: Number(formData.get('openDaysBefore') ?? 7),
+    poll_weekday: pollWeekday,
+    poll_open_time: pollOpenTime,
   };
 }
 

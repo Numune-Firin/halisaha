@@ -21,7 +21,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-5 py-10">
       <div className="card w-full max-w-sm overflow-hidden">
-        <div className="flex flex-col items-center gap-4 border-b border-white/10 bg-white/[0.03] px-6 py-8">
+        <div className="flex flex-col items-center gap-4 border-b border-[color:var(--line)] bg-[color:var(--surface)] px-6 py-8">
           <Image
             src="/sponsor.jpg"
             alt="Numune Fırın Futbol Ligi"
@@ -47,10 +47,14 @@ export default function LoginPage() {
         </div>
       </div>
 
+      <p className="text-center text-xs text-ink-500">
+        Numune Fırın Football Federation A.Ş. tarafından geliştirilmiştir
+      </p>
+
       <div className="flex items-center gap-2 text-[0.7rem] uppercase tracking-widest text-ink-500">
-        <span className="h-px w-8 bg-white/15" />
+        <span className="h-px w-8 bg-[color:var(--line-strong)]" />
         Numune Fırın Futbol Ligi
-        <span className="h-px w-8 bg-white/15" />
+        <span className="h-px w-8 bg-[color:var(--line-strong)]" />
       </div>
     </main>
   );

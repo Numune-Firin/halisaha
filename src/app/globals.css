@@ -1,41 +1,92 @@
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
-   Tasarim belirtecleri. Renk paleti sahadan gelir: koyu cim zemin, krem
-   (logodaki bugday tonu) vurgu, altin sari aksiyon rengi.
+   Tasarim belirtecleri. Palet: gece mavisi zemin (navy), acik mavi-beyaz
+   basliklar (frost), mavi aksiyon rengi (azure) ve yalnizca one cikmasi
+   gereken yerlerde kullanilan kehribar (amber): yildiz, VIP, sponsor.
    -------------------------------------------------------------------------- */
 @theme {
-  --color-pitch-950: #04120c;
-  --color-pitch-900: #071a12;
-  --color-pitch-800: #0c261a;
-  --color-pitch-700: #124029;
-  --color-pitch-600: #1a5c3a;
-  --color-pitch-500: #22c55e;
+  --color-navy-950: #0a1222;
+  --color-navy-900: #101b30;
+  --color-navy-800: #16243e;
+  --color-navy-700: #1e3459;
+  --color-navy-600: #2c5288;
+  --color-navy-500: #3b82f6;
 
-  --color-cream-100: #f6efe1;
-  --color-cream-200: #e8dcc2;
-  --color-cream-400: #c9b285;
+  --color-frost-100: #f3f7ff;
+  --color-frost-200: #dce7fa;
+  --color-frost-400: #a7bfe4;
 
-  --color-gold-400: #f0b429;
-  --color-gold-500: #d69412;
+  --color-azure-400: #58a6ff;
+  --color-azure-500: #2b7fe0;
 
-  --color-ink-100: #e9f1ea;
-  --color-ink-300: #a9bdb0;
-  --color-ink-500: #6f8578;
+  --color-amber-400: #f0b429;
+  --color-amber-500: #d69412;
+
+  --color-ink-100: #e7eeff;
+  --color-ink-300: #a8badb;
+  --color-ink-500: #7386a6;
 
   --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Noto Sans", sans-serif;
 }
 
-:root {
-  --surface: rgba(255, 255, 255, 0.045);
-  --surface-strong: rgba(255, 255, 255, 0.08);
-  --line: rgba(233, 241, 234, 0.12);
-  --line-strong: rgba(233, 241, 234, 0.22);
+/* --------------------------------------------------------------------------
+   Iki tema. @theme bloğundaki degerler koyu temanindir; acik tema ayni
+   belirtecleri [data-theme="light"] altinda yeniden tanimlar, boylece butun
+   siniflar ve Tailwind yardimcilari tek yerden donuyor.
+   -------------------------------------------------------------------------- */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-strong: rgba(255, 255, 255, 0.11);
+  --line: rgba(200, 219, 250, 0.16);
+  --line-strong: rgba(200, 219, 250, 0.28);
+
+  --panel: #0d1729;
+  --panel-soft: rgba(13, 23, 41, 0.85);
+  --field: rgba(8, 17, 33, 0.6);
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  --glow-one: rgba(59, 130, 246, 0.22);
+  --glow-two: rgba(88, 166, 255, 0.14);
+  --stripe: rgba(255, 255, 255, 0.02);
 }
 
-html {
-  color-scheme: dark;
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-navy-950: #eef2f8;
+  --color-navy-900: #ffffff;
+  --color-navy-800: #e6ecf6;
+  --color-navy-700: #cfdcee;
+  --color-navy-600: #93b4e0;
+
+  --color-frost-100: #101f37;
+  --color-frost-200: #22334f;
+  --color-frost-400: #4a5f80;
+
+  --color-ink-100: #1b2a42;
+  --color-ink-300: #566780;
+  --color-ink-500: #8595ad;
+
+  --color-azure-400: #2b7fe0;
+  --color-azure-500: #1c63b8;
+
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
+  --line: rgba(16, 31, 55, 0.12);
+  --line-strong: rgba(16, 31, 55, 0.22);
+
+  --panel: #ffffff;
+  --panel-soft: rgba(255, 255, 255, 0.9);
+  --field: #ffffff;
+  --card-shadow: 0 1px 2px rgba(16, 31, 55, 0.06), 0 10px 30px -22px rgba(16, 31, 55, 0.45);
+  --glow-one: rgba(43, 127, 224, 0.12);
+  --glow-two: rgba(88, 166, 255, 0.1);
+  --stripe: rgba(16, 31, 55, 0.015);
 }
 
 body {
@@ -43,15 +94,15 @@ body {
   margin: 0;
   color: var(--color-ink-100);
   font-family: var(--font-sans);
-  background-color: var(--color-pitch-950);
-  /* Sahanin bicilmis cim seritleri + kose isiklari */
+  background-color: var(--color-navy-950);
+  /* Kose isiklari: solda mavi, sagda acik mavi; uzerinde cok soluk seritler */
   background-image:
-    radial-gradient(1100px 520px at 12% -10%, rgba(34, 197, 94, 0.16), transparent 60%),
-    radial-gradient(900px 480px at 92% 0%, rgba(240, 180, 41, 0.1), transparent 60%),
+    radial-gradient(1100px 520px at 12% -10%, var(--glow-one), transparent 60%),
+    radial-gradient(900px 480px at 92% 0%, var(--glow-two), transparent 60%),
     repeating-linear-gradient(
       100deg,
-      rgba(255, 255, 255, 0.017) 0px,
-      rgba(255, 255, 255, 0.017) 58px,
+      var(--stripe) 0px,
+      var(--stripe) 58px,
       transparent 58px,
       transparent 116px
     );
@@ -64,11 +115,46 @@ body {
 .page {
   margin-inline: auto;
   width: 100%;
-  max-width: 44rem;
+  max-width: 60rem;
   padding: 1.25rem 1rem 4rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Sol menu. Kart zemini saydam oldugu icin menu paneli opak durur; altindaki
+   icerik menunun arkasindan gorunmez.
+   -------------------------------------------------------------------------- */
+.sidebar {
+  background-color: var(--panel);
+  background-image: linear-gradient(180deg, var(--surface), transparent);
+  border-right: 1px solid var(--line);
+  box-shadow: 24px 0 60px -40px rgba(0, 0, 0, 0.9);
+}
+
+.nav-link {
+  display: block;
+  border-radius: 0.7rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--color-ink-100);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover {
+  background: var(--surface-strong);
+}
+
+.nav-link-active {
+  background: rgba(88, 166, 255, 0.14);
+  box-shadow: inset 3px 0 0 var(--color-azure-400);
+  color: var(--color-frost-100);
+}
+
+.topbar {
+  background-color: var(--panel-soft);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(10px);
 }
 
 .section-title {
@@ -97,7 +183,7 @@ body {
   border-radius: 1rem;
   background: var(--surface);
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  box-shadow: var(--card-shadow);
 }
 
 .card-pad {
@@ -110,7 +196,7 @@ body {
 }
 
 .card-link:hover {
-  border-color: var(--color-pitch-600);
+  border-color: var(--color-navy-600);
   background: var(--surface-strong);
   transform: translateY(-1px);
 }
@@ -147,9 +233,9 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, var(--color-gold-400), var(--color-gold-500));
-  color: #241a02;
-  box-shadow: 0 10px 24px -14px rgba(240, 180, 41, 0.9);
+  background: linear-gradient(180deg, var(--color-azure-400), var(--color-azure-500));
+  color: #05152b;
+  box-shadow: 0 10px 24px -14px rgba(88, 166, 255, 0.9);
 }
 
 .btn-go {
@@ -191,7 +277,7 @@ body {
 .label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-cream-100);
+  color: var(--color-frost-100);
 }
 
 .hint {
@@ -204,15 +290,22 @@ body {
   width: 100%;
   border: 1px solid var(--line-strong);
   border-radius: 0.7rem;
-  background: rgba(4, 18, 12, 0.55);
+  background: var(--field);
   padding: 0.55rem 0.7rem;
   font-size: 0.95rem;
   color: var(--color-ink-100);
   font-family: inherit;
 }
 
+/* Liste satiri icinde duran dar alan */
+.input-sm {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+  border-radius: 0.55rem;
+}
+
 .input:focus {
-  outline: 2px solid rgba(240, 180, 41, 0.55);
+  outline: 2px solid rgba(88, 166, 255, 0.6);
   outline-offset: 1px;
   border-color: transparent;
 }
@@ -225,6 +318,26 @@ body {
 .input::-webkit-calendar-picker-indicator {
   filter: invert(1) opacity(0.6);
   cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Yildizli oylama
+   -------------------------------------------------------------------------- */
+.star {
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--color-ink-500);
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+
+.star:hover {
+  color: var(--color-amber-400);
+  transform: scale(1.12);
+}
+
+.star-on {
+  color: var(--color-amber-400);
 }
 
 /* --------------------------------------------------------------------------
@@ -247,7 +360,7 @@ body {
 .badge-vip {
   border-color: rgba(240, 180, 41, 0.45);
   background: rgba(240, 180, 41, 0.14);
-  color: var(--color-gold-400);
+  color: var(--color-amber-400);
 }
 
 .badge-priority {
@@ -263,7 +376,13 @@ body {
 }
 
 .badge-muted {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface);
+}
+
+.badge-danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
 }
 
 /* --------------------------------------------------------------------------
@@ -271,7 +390,7 @@ body {
    menu paneli opak bir zemin kullanir.
    -------------------------------------------------------------------------- */
 .menu-panel {
-  background-color: #0a1d14;
+  background-color: var(--panel);
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
   border: 1px solid var(--line-strong);
   box-shadow: 0 26px 60px -18px rgba(0, 0, 0, 0.95);

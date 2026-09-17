@@ -72,9 +72,9 @@ export default async function SquadPage({
     >
       <div className="card card-pad text-sm leading-relaxed text-ink-300">
         Sahada fiilen oynayan oyuncuları işaretle. Anketteki ilk{' '}
-        <span className="text-cream-100">{data.match.squadSize}</span> kişi hazır işaretli gelir.
+        <span className="text-frost-100">{data.match.squadSize}</span> kişi hazır işaretli gelir.
         Puanlar ve ödemeler bu liste üzerinden işler ve anket kapanır. Kadro tam{' '}
-        <span className="text-cream-100">{data.match.squadSize}</span> kişi olmadan
+        <span className="text-frost-100">{data.match.squadSize}</span> kişi olmadan
         kesinleştirilemez.
       </div>
 

@@ -191,3 +191,86 @@ export async function adminRemoveEntry(matchId: string, participantId: string, i
 
   revalidatePath(`/poll/${matchId}`);
 }
+
+/**
+ * Haftayi iptal eder (tatil, kar, kontenjanin dolmamasi...). Mac satiri silinmez:
+ * durdugu surece haftalik takvim ayni gun icin yeni bir mac uretmez.
+ */
+/**
+ * Bu haftaya ozel bilgiler: saha, kisi basi ucret, kadro mevcudu ve haftanin
+ * sponsoru. Takvimden gelen degerler yalnizca baslangic degeridir; burada
+ * degistirilen yalnizca bu maci etkiler.
+ */
+export async function updateMatchDetails(matchId: string, formData: FormData) {
+  await requireAdmin();
+
+  const fee = Number(String(formData.get('feePerPlayer') ?? '').replace(',', '.'));
+  const squadSize = Number(formData.get('squadSize'));
+  if (!Number.isFinite(fee) || fee < 0) throw new Error('Ücret negatif olamaz');
+  if (!Number.isInteger(squadSize) || squadSize < 2 || squadSize > 40) {
+    throw new Error('Kadro mevcudu 2 ile 40 arasında olmalı');
+  }
+
+  const supabase = await createServerSupabase();
+  const { data, error } = await supabase
+    .from('matches')
+    .update({
+      venue: String(formData.get('venue') ?? '').trim(),
+      fee_per_player: fee,
+      squad_size: squadSize,
+      sponsor_name: String(formData.get('sponsorName') ?? '').trim().slice(0, 60),
+    })
+    .eq('id', matchId)
+    .select('id');
+  if (error) throw new Error(error.message);
+  if ((data ?? []).length === 0) throw new Error('Maç bulunamadı');
+
+  revalidatePath(`/poll/${matchId}`);
+  revalidatePath(`/poll/${matchId}/payments`);
+  revalidatePath('/matches');
+  revalidatePath('/');
+}
+
+/** Skor beklemeden maci oynandi yapar; oylama bununla acilir. */
+export async function markMatchPlayed(matchId: string) {
+  await requireAdmin();
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.rpc('mark_match_played', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/poll/${matchId}`);
+  revalidatePath(`/poll/${matchId}/ratings`);
+  revalidatePath('/matches');
+  revalidatePath('/');
+}
+
+export async function cancelMatch(matchId: string, formData: FormData) {
+  await requireAdmin();
+
+  const reason = String(formData.get('reason') ?? '').trim();
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.rpc('cancel_match', {
+    p_match_id: matchId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/poll/${matchId}`);
+  revalidatePath('/matches');
+  revalidatePath('/');
+}
+
+/** Yanlislikla iptal edilen haftayi birakildigi duruma geri dondurur. */
+export async function restoreMatch(matchId: string) {
+  await requireAdmin();
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.rpc('restore_match', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/poll/${matchId}`);
+  revalidatePath('/matches');
+  revalidatePath('/');
+}

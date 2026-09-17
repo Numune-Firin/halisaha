@@ -41,7 +41,7 @@ export function SquadPicker({
                 value={p.id}
                 checked={selected.includes(p.id)}
                 onChange={(e) => toggle(p.id, e.target.checked)}
-                className="h-4 w-4 accent-[var(--color-gold-400)]"
+                className="h-4 w-4 accent-[var(--color-azure-400)]"
               />
               <span className="flex-1 text-sm text-ink-100">
                 {p.fullName || 'İsimsiz oyuncu'}
@@ -54,7 +54,7 @@ export function SquadPicker({
 
       <div className="card card-pad flex items-center justify-between text-sm">
         <span className="text-ink-300">Seçili</span>
-        <span className={isReady ? 'font-semibold text-cream-100' : 'font-semibold text-gold-400'}>
+        <span className={isReady ? 'font-semibold text-frost-100' : 'font-semibold text-amber-400'}>
           {count}/{squadSize}
         </span>
       </div>

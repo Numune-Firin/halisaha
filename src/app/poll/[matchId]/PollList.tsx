@@ -1,11 +1,5 @@
 import type { PollRow } from '@/lib/db/poll';
-
-const POSITION_LABELS: Record<string, string> = {
-  goalkeeper: 'KL',
-  defender: 'DF',
-  midfielder: 'OS',
-  forward: 'FV',
-};
+import { POSITION_SHORT } from '@/lib/ui/position';
 
 /** Admin'in bir satiri listeden cikarmasi icin baglanacak sunucu eylemi. */
 export type RemoveEntryAction = (playerId: string, isGuest: boolean) => Promise<void>;
@@ -82,8 +76,8 @@ function Section({
                 {r.rank}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-ink-100">{r.fullName}</span>
-              {r.position && <span className="badge badge-muted">{POSITION_LABELS[r.position]}</span>}
-              {r.isGuest && <span className="badge badge-muted">Aday</span>}
+              {r.position && <span className="badge badge-muted">{POSITION_SHORT[r.position]}</span>}
+              {r.isGuest && !r.isRegular && <span className="badge badge-muted">Aday</span>}
               {r.entryType === 'vip' && <span className="badge badge-vip">VIP</span>}
               {r.entryType === 'priority' && <span className="badge badge-priority">Öncelikli</span>}
               {removeEntry && (

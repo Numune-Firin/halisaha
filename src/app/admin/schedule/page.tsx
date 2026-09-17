@@ -22,7 +22,8 @@ type ScheduleRow = {
   fee_per_player: number;
   withdrawal_window_hours: number;
   late_withdrawal_penalty_seconds: number;
-  open_days_before: number;
+  poll_weekday: number;
+  poll_open_time: string;
   is_active: boolean;
 };
 
@@ -59,13 +60,13 @@ export default async function SchedulePage() {
     <AppShell
       profile={profile}
       title="Anket takvimi"
-      subtitle="Maç gününü ve saatini bir kez tanımla; anketler her hafta kendiliğinden açılsın. Tanım sezona bağlı değildir, yeni sezonda da aynı şekilde devam eder."
+      subtitle="Anket gününü ve maç gününü bir kez tanımla; her hafta kendiliğinden tekrarlansın. Tanım sezona bağlı değildir, yeni sezonda da aynı şekilde devam eder."
     >
       {!season && (
         <div className="card card-pad text-sm text-ink-300">
           Şu an aktif bir sezon yok. Takvim yine çalışır ama açılan maçlar hiçbir sezona
           bağlanmaz.{' '}
-          <Link href="/admin/seasons" className="text-gold-400 underline">
+          <Link href="/admin/seasons" className="text-azure-400 underline">
             Sezon tanımla
           </Link>
         </div>
@@ -76,10 +77,39 @@ export default async function SchedulePage() {
         <form action={createSchedule} className="card card-pad flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">
-              <label className="label" htmlFor="weekday">
-                Haftanın günü
+              <label className="label" htmlFor="pollWeekday">
+                Anket günü
               </label>
-              <select id="weekday" name="weekday" defaultValue={1} className="input">
+              <select id="pollWeekday" name="pollWeekday" defaultValue={1} className="input">
+                {WEEKDAY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <p className="hint">Girişler her hafta bu gün açılır.</p>
+            </div>
+
+            <div className="field">
+              <label className="label" htmlFor="pollOpenTime">
+                Anket saati
+              </label>
+              <input
+                id="pollOpenTime"
+                name="pollOpenTime"
+                type="time"
+                required
+                defaultValue="12:00"
+                className="input"
+              />
+              <p className="hint">Türkiye saati. Liste tam bu anda açılır.</p>
+            </div>
+
+            <div className="field">
+              <label className="label" htmlFor="weekday">
+                Maç günü
+              </label>
+              <select id="weekday" name="weekday" defaultValue={4} className="input">
                 {WEEKDAY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -98,7 +128,7 @@ export default async function SchedulePage() {
                 name="startTime"
                 type="time"
                 required
-                defaultValue="12:00"
+                defaultValue="22:15"
                 className="input"
               />
               <p className="hint">Türkiye saati.</p>
@@ -117,24 +147,6 @@ export default async function SchedulePage() {
               className="input"
             />
             <p className="hint">Her hafta açılan maça bu saha yazılır.</p>
-          </div>
-
-          <div className="field">
-            <label className="label" htmlFor="openDaysBefore">
-              Anket kaç gün önce açılsın
-            </label>
-            <input
-              id="openDaysBefore"
-              name="openDaysBefore"
-              type="number"
-              min={0}
-              max={60}
-              defaultValue={7}
-              className="input"
-            />
-            <p className="hint">
-              7 yazarsan maçtan bir hafta önce anket açılır ve girişler başlar.
-            </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -223,7 +235,7 @@ export default async function SchedulePage() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-cream-100">
+                          <h3 className="font-semibold text-frost-100">
                             Her {WEEKDAY_LABELS[schedule.weekday]} {schedule.start_time.slice(0, 5)}
                           </h3>
                           {schedule.is_active ? (
@@ -237,7 +249,8 @@ export default async function SchedulePage() {
                           {schedule.fee_per_player} ₺
                         </p>
                         <p className="mt-0.5 text-xs text-ink-500">
-                          Anket maçtan {schedule.open_days_before} gün önce açılır
+                          Anket her {WEEKDAY_LABELS[schedule.poll_weekday]}{' '}
+                          {schedule.poll_open_time.slice(0, 5)} açılır
                         </p>
                       </div>
 
@@ -255,7 +268,7 @@ export default async function SchedulePage() {
                     </div>
 
                     {schedule.is_active && upcoming.length > 0 && (
-                      <ul className="mt-3 flex flex-col gap-1 border-t border-white/10 pt-3">
+                      <ul className="mt-3 flex flex-col gap-1 border-t border-[color:var(--line)] pt-3">
                         {upcoming.map((iso) => (
                           <li key={iso} className="text-xs text-ink-300">
                             {formatKickoff(iso)}
@@ -264,8 +277,8 @@ export default async function SchedulePage() {
                       </ul>
                     )}
 
-                    <details className="mt-3 border-t border-white/10 pt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-gold-400">
+                    <details className="mt-3 border-t border-[color:var(--line)] pt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-azure-400">
                         Düzenle
                       </summary>
                       <form
@@ -274,7 +287,31 @@ export default async function SchedulePage() {
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="field">
-                            <label className="label">Gün</label>
+                            <label className="label">Anket günü</label>
+                            <select
+                              name="pollWeekday"
+                              defaultValue={schedule.poll_weekday}
+                              className="input"
+                            >
+                              {WEEKDAY_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="field">
+                            <label className="label">Anket saati</label>
+                            <input
+                              name="pollOpenTime"
+                              type="time"
+                              required
+                              defaultValue={schedule.poll_open_time.slice(0, 5)}
+                              className="input"
+                            />
+                          </div>
+                          <div className="field">
+                            <label className="label">Maç günü</label>
                             <select
                               name="weekday"
                               defaultValue={schedule.weekday}
@@ -288,7 +325,7 @@ export default async function SchedulePage() {
                             </select>
                           </div>
                           <div className="field">
-                            <label className="label">Saat</label>
+                            <label className="label">Maç saati</label>
                             <input
                               name="startTime"
                               type="time"
@@ -310,17 +347,6 @@ export default async function SchedulePage() {
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="field">
-                            <label className="label">Anket kaç gün önce</label>
-                            <input
-                              name="openDaysBefore"
-                              type="number"
-                              min={0}
-                              max={60}
-                              defaultValue={schedule.open_days_before}
-                              className="input"
-                            />
-                          </div>
                           <div className="field">
                             <label className="label">Kadro mevcudu</label>
                             <input
@@ -375,7 +401,7 @@ export default async function SchedulePage() {
 
                       <form
                         action={deleteSchedule.bind(null, schedule.id)}
-                        className="mt-3 border-t border-white/10 pt-3"
+                        className="mt-3 border-t border-[color:var(--line)] pt-3"
                       >
                         <button className="btn btn-danger btn-sm">Takvimi sil</button>
                         <p className="hint mt-1">

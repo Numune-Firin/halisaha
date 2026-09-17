@@ -1,22 +1,40 @@
-import Image from 'next/image';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { signOut } from '@/app/auth/actions';
-import type { Profile } from '@/lib/supabase/server';
-import { SiteNav, type NavGroup } from './SiteNav';
+import { createServerSupabase, type Profile } from '@/lib/supabase/server';
+import { AppChrome, type NavGroup } from './AppChrome';
 
 const PLAYER_GROUP: NavGroup = {
   title: 'Lig',
   items: [
-    { href: '/', label: 'Ana sayfa', description: 'Açık anket ve yaklaşan maçlar' },
-    { href: '/matches', label: 'Maçlar', description: 'Geçmiş ve gelecek tüm maçlar' },
+    { href: '/', label: 'Ana sayfa', description: 'Aktif anket ve özet' },
+    { href: '/matches', label: 'Maçlar', description: 'Geçmiş anketler ve maçlar' },
+    { href: '/standings', label: 'Puan durumu', description: 'Sezonun oyuncu sıralaması' },
+    { href: '/players', label: 'Oyuncular', description: 'Kadro listesi ve mevkiler' },
   ],
 };
 
-const ADMIN_GROUP: NavGroup = {
+/** Onay bekleyen uye sayisi menude rozet olarak durur; sayfa acmadan gorulur. */
+function adminGroup(pendingCount: number): NavGroup {
+  return {
   title: 'Yönetim',
   items: [
-    { href: '/admin', label: 'Yönetim paneli', description: 'Üye onayları ve yeni anket' },
+    {
+      href: '/admin',
+      label: 'Yönetim paneli',
+      description: 'Üye onayları ve yeni anket',
+      badge: pendingCount,
+    },
+    { href: '/admin/teams', label: 'Takımlar', description: 'Takım tanımı ve sahadaki ikisi' },
+    {
+      href: '/admin/accounting',
+      label: 'Muhasebe',
+      description: 'Sezonun para özeti ve borçlar',
+    },
+    {
+      href: '/admin/adjustments',
+      label: 'Ceza ve ödül',
+      description: 'Sıraya eklenen ya da düşülen saniyeler',
+    },
     { href: '/admin/seasons', label: 'Sezonlar', description: 'Sezon tanımı, başlangıç ve bitiş' },
     {
       href: '/admin/schedule',
@@ -24,10 +42,11 @@ const ADMIN_GROUP: NavGroup = {
       description: 'Her hafta kendiliğinden açılan maçlar',
     },
   ],
-};
+  };
+}
 
-/** Ustte marka + menu, altta sayfa icerigi. Butun ic sayfalar bunu kullanir. */
-export function AppShell({
+/** Solda menu, sagda icerik. Butun ic sayfalar bunu kullanir. */
+export async function AppShell({
   profile,
   title,
   subtitle,
@@ -41,41 +60,28 @@ export function AppShell({
   children: ReactNode;
 }) {
   const isAdmin = profile.role === 'admin';
-  const groups = isAdmin ? [PLAYER_GROUP, ADMIN_GROUP] : [PLAYER_GROUP];
+
+  let pendingCount = 0;
+  if (isAdmin) {
+    const supabase = await createServerSupabase();
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    pendingCount = count ?? 0;
+  }
 
   return (
-    <>
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-pitch-950/80 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 py-2.5">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/sponsor.jpg"
-              alt="Numune Fırın Futbol Ligi"
-              width={320}
-              height={114}
-              priority
-              className="h-9 w-auto rounded-md"
-            />
-          </Link>
-          <SiteNav
-            groups={groups}
-            userName={profile.full_name || 'Oyuncu'}
-            isAdmin={isAdmin}
-            signOutAction={signOut}
-          />
-        </div>
-      </header>
-
-      <main className="page">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-cream-100">{title}</h1>
-            {subtitle && <div className="mt-1 text-sm text-ink-300">{subtitle}</div>}
-          </div>
-          {action}
-        </div>
-        {children}
-      </main>
-    </>
+    <AppChrome
+      groups={isAdmin ? [PLAYER_GROUP, adminGroup(pendingCount)] : [PLAYER_GROUP]}
+      userName={profile.full_name || 'Oyuncu'}
+      isAdmin={isAdmin}
+      signOutAction={signOut}
+      title={title}
+      subtitle={subtitle}
+      action={action}
+    >
+      {children}
+    </AppChrome>
   );
 }

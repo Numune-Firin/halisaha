@@ -13,7 +13,7 @@ export default function PendingApprovalPage() {
           className="mx-auto w-44 rounded-lg"
         />
         <span className="badge badge-muted mt-6">Onay bekleniyor</span>
-        <h1 className="mt-3 text-xl font-bold text-cream-100">Hesabın yönetici onayında</h1>
+        <h1 className="mt-3 text-xl font-bold text-frost-100">Hesabın yönetici onayında</h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-300">
           Lig kapalı bir gruptur. Yöneticiler seni onayladıktan sonra ankete girebilir,
           kadroyu ve puan durumunu görebilirsin.

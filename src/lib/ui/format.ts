@@ -41,18 +41,46 @@ export function formatShort(value: string) {
   return shortFormatter.format(new Date(value));
 }
 
-export type MatchStatus = 'poll_open' | 'squad_locked' | 'played' | 'completed';
+export type MatchStatus =
+  | 'poll_open'
+  | 'squad_locked'
+  | 'played'
+  | 'completed'
+  | 'cancelled';
 
-export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
+/**
+ * Ekranda gorunen durum. Mac saati gectikten sonra anket kendiliginden kapanir:
+ * durum kolonu 'poll_open' kalsa bile o anket artik acik degildir, kimse
+ * giremez. Veritabanina yazmak yerine goruntuleme aninda hesaplanir, boylece
+ * arka planda calisan bir is gerekmez.
+ */
+export type MatchDisplayStatus = MatchStatus | 'expired';
+
+export const MATCH_STATUS_LABELS: Record<MatchDisplayStatus, string> = {
   poll_open: 'Anket açık',
   squad_locked: 'Kadro kesin',
   played: 'Oynandı',
   completed: 'Tamamlandı',
+  cancelled: 'İptal',
+  expired: 'Anket kapandı',
 };
 
-export const MATCH_STATUS_BADGES: Record<MatchStatus, string> = {
+export const MATCH_STATUS_BADGES: Record<MatchDisplayStatus, string> = {
   poll_open: 'badge badge-live',
   squad_locked: 'badge badge-vip',
   played: 'badge badge-muted',
   completed: 'badge badge-muted',
+  cancelled: 'badge badge-danger',
+  expired: 'badge badge-muted',
 };
+
+/** Mac saati gecmis acik anket 'expired' olarak gosterilir. */
+export function displayStatus(status: MatchStatus, kickoffAt: string): MatchDisplayStatus {
+  if (status === 'poll_open' && new Date(kickoffAt).getTime() <= Date.now()) return 'expired';
+  return status;
+}
+
+/** Anket gercekten acik mi: durumu poll_open ve mac saati henuz gelmemis. */
+export function isPollLive(status: MatchStatus, kickoffAt: string) {
+  return displayStatus(status, kickoffAt) === 'poll_open';
+}

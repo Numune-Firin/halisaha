@@ -92,7 +92,7 @@ export default async function SeasonsPage() {
               type="checkbox"
               name="makeActive"
               defaultChecked
-              className="mt-0.5 h-4 w-4 accent-[var(--color-gold-400)]"
+              className="mt-0.5 h-4 w-4 accent-[var(--color-azure-400)]"
             />
             <span>
               Bu sezonu aktif yap
@@ -120,7 +120,7 @@ export default async function SeasonsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-cream-100">{season.name}</h3>
+                      <h3 className="font-semibold text-frost-100">{season.name}</h3>
                       {season.is_active ? (
                         <span className="badge badge-live">Aktif</span>
                       ) : (
@@ -149,8 +149,8 @@ export default async function SeasonsPage() {
                   </div>
                 </div>
 
-                <details className="mt-3 border-t border-white/10 pt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-gold-400">
+                <details className="mt-3 border-t border-[color:var(--line)] pt-3">
+                  <summary className="cursor-pointer text-sm font-medium text-azure-400">
                     Düzenle
                   </summary>
                   <form

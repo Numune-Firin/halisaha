@@ -20,7 +20,7 @@ export default async function AdminPage() {
 
   const { data: pendingMembers } = await supabase
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, email')
     .eq('status', 'pending');
 
   const { data: settings } = await supabase.from('settings').select('*').maybeSingle();
@@ -46,12 +46,12 @@ export default async function AdminPage() {
       subtitle={
         season ? (
           <>
-            Yeni maçlar <span className="text-cream-100">{season.name}</span> sezonuna yazılır.
+            Yeni maçlar <span className="text-frost-100">{season.name}</span> sezonuna yazılır.
           </>
         ) : (
           <>
             Aktif sezon yok.{' '}
-            <Link href="/admin/seasons" className="text-gold-400 underline">
+            <Link href="/admin/seasons" className="text-azure-400 underline">
               Önce bir sezon tanımla
             </Link>
             .
@@ -71,9 +71,14 @@ export default async function AdminPage() {
           <ul className="card divide-line">
             {pending.map((m) => (
               <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="truncate text-sm text-cream-100">
-                  {m.full_name || 'İsimsiz oyuncu'}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-frost-100">
+                    {m.full_name || 'İsimsiz oyuncu'}
+                  </div>
+                  <div className="truncate text-xs text-ink-500">
+                    {(m.email as string | null) || 'E-posta yok'}
+                  </div>
+                </div>
                 <form action={approveMember.bind(null, m.id)}>
                   <button className="btn btn-go btn-sm">Onayla</button>
                 </form>
@@ -88,7 +93,7 @@ export default async function AdminPage() {
         <p className="hint">
           Tek seferlik bir maç için. Her hafta aynı gün ve saatte oynuyorsanız tek tek açmak
           yerine{' '}
-          <Link href="/admin/schedule" className="text-gold-400 underline">
+          <Link href="/admin/schedule" className="text-azure-400 underline">
             anket takvimi
           </Link>{' '}
           tanımla; anketler kendiliğinden açılsın.
@@ -212,7 +217,7 @@ export default async function AdminPage() {
               return (
                 <li key={m.id} className="flex flex-wrap items-center gap-2 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-cream-100">
+                    <div className="truncate text-sm font-semibold text-frost-100">
                       {formatKickoff(m.kickoff_at as string)}
                     </div>
                     <div className="truncate text-xs text-ink-300">
@@ -225,6 +230,9 @@ export default async function AdminPage() {
                   </Link>
                   <Link href={`/poll/${m.id}/squad`} className="btn btn-ghost btn-sm">
                     Kadro
+                  </Link>
+                  <Link href={`/poll/${m.id}/result`} className="btn btn-ghost btn-sm">
+                    Skor
                   </Link>
                 </li>
               );
