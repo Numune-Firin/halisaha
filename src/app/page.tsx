@@ -39,13 +39,21 @@ export default async function HomePage() {
     .limit(1)
     .maybeSingle();
 
+  // Anket acikken ankete girenler, kadro kesinlestikten sonra kadrodakiler
+  // sayilir: kilitlendikten sonra "ankette kaç kişi var" bilgisi yanıltıyordu.
+  const isPollStillOpen = match?.status === 'poll_open';
   let listedCount = 0;
   if (match) {
-    const { count } = await supabase
-      .from('match_entries')
-      .select('id', { count: 'exact', head: true })
-      .eq('match_id', match.id as string)
-      .is('withdrawn_at', null);
+    const { count } = isPollStillOpen
+      ? await supabase
+          .from('match_entries')
+          .select('id', { count: 'exact', head: true })
+          .eq('match_id', match.id as string)
+          .is('withdrawn_at', null)
+      : await supabase
+          .from('match_squad')
+          .select('id', { count: 'exact', head: true })
+          .eq('match_id', match.id as string);
     listedCount = count ?? 0;
   }
 
@@ -71,9 +79,13 @@ export default async function HomePage() {
       hint: match ? (match.venue as string) || 'Saha belirtilmedi' : 'Açık anket bulunmuyor',
     },
     {
-      label: 'Listede',
+      label: isPollStillOpen ? 'Listede' : 'Kadro',
       value: match ? `${listedCount}/${match.squad_size}` : '—',
-      hint: match ? 'Ankete giren oyuncu' : 'Anket açılınca dolar',
+      hint: match
+        ? isPollStillOpen
+          ? 'Ankete giren oyuncu'
+          : 'Kesinleşmiş kadro'
+        : 'Anket açılınca dolar',
     },
     {
       label: 'Oynanan maç',
@@ -130,7 +142,7 @@ export default async function HomePage() {
             {!isCancelled && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-300">
                 <span>
-                  Listede {listedCount}/{match.squad_size} kişi
+                  {isPollStillOpen ? 'Listede' : 'Kadro'} {listedCount}/{match.squad_size} kişi
                 </span>
                 <span>
                   Kişi başı {Number(match.fee_per_player ?? 0).toLocaleString('tr-TR')} ₺

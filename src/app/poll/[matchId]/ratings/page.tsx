@@ -100,7 +100,10 @@ export default async function RatingsPage({
   const comments = commentRows ?? [];
   const isInSquad = squad.some((m) => m.playerId === profile.id);
   // Yonetici kendine de oy verebilir; normal oyuncu veremez.
+  // Oy da yorum da yalnizca o macin kadrosunda olanlara acik; yonetici
+  // kadroda olmasa da yazabilir. Ayni kural veritabaninda da duruyor.
   const canVote = isVotingOpen && (isAdmin || isInSquad);
+  const canComment = canVote;
 
   return (
     <AppShell
@@ -182,7 +185,7 @@ export default async function RatingsPage({
             <div className="card card-pad text-sm text-ink-300">
               {!isVotingOpen
                 ? 'Oylama süresi doldu. Verilen oylar ve maçın yıldızı yukarıda.'
-                : 'Bu maçın kadrosunda olmadığın için oy veremezsin; yorumları okuyabilir ve yorum yazabilirsin.'}
+                : 'Bu maçın kadrosunda değilsin: oy veremez, yorum yazamazsın. Yazılanları okuyabilirsin.'}
             </div>
           )}
 
@@ -286,13 +289,15 @@ export default async function RatingsPage({
           Yorumlar <span className="badge badge-muted">{comments.length}</span>
         </h2>
 
-        {!isVotingOpen && isPlayed && (
+        {isPlayed && !canComment && (
           <div className="card card-pad text-sm text-ink-300">
-            Yorumlar kapandı; eski yorumlar aşağıda duruyor.
+            {!isVotingOpen
+              ? 'Yorumlar kapandı; eski yorumlar aşağıda duruyor.'
+              : 'Yorum yazmak için bu maçın kadrosunda olman gerekiyor.'}
           </div>
         )}
 
-        {isVotingOpen && (
+        {canComment && (
         <form action={addComment.bind(null, matchId)} className="card card-pad flex flex-col gap-3">
           <div className="field">
             <label className="label" htmlFor="body">

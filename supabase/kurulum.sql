@@ -2,8 +2,8 @@
 -- HALI SAHA - TEK PARCA VERITABANI KURULUM DOSYASI
 -- =============================================================================
 --
--- Bu dosya, supabase/migrations/ klasorundeki yirmi uc migration dosyasinin
--- (0001'den 0023'e) sirayla ve degistirilmeden birlestirilmis halidir.
+-- Bu dosya, supabase/migrations/ klasorundeki yirmi dort migration dosyasinin
+-- (0001'den 0024'e) sirayla ve degistirilmeden birlestirilmis halidir.
 -- Amac: Supabase panelindeki "SQL Editor"e tek seferde kopyala-yapistir-calistir
 -- yapabilmen; alti ayri dosyayla tek tek ugrasman gerekmesin.
 --
@@ -2896,5 +2896,41 @@ $$;
 
 revoke all on function public.reset_payment_reminder(uuid) from public;
 grant execute on function public.reset_payment_reminder(uuid) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0024_comment_squad_only.sql
+-- Yorum yazmak da oy vermek gibi macin kadrosuna baglanir; yonetici her zaman yazabilir.
+-- -----------------------------------------------------------------------------
+
+-- Yorum yazmak da oy vermek gibi kadroya baglanir.
+--
+-- Oy verme kurali zaten rate_player icinde: macin kadrosunda olmayan oy
+-- veremez, yonetici her zaman verebilir. Yorum ise butun uyelere acikti;
+-- artik o da ayni kurala uyar, cunku maci oynamayan kisinin mac hakkinda
+-- yorum yazmasi istenmiyor.
+--
+-- Okumak herkese acik kalir: grup yorumlari gorebilir.
+
+drop policy if exists match_comments_insert on match_comments;
+
+create policy match_comments_insert on match_comments for insert
+  with check (
+    is_active_member()
+    and author_id = auth.uid()
+    and exists (
+      select 1 from matches m
+       where m.id = match_id
+         and m.status in ('played', 'completed')
+         and (m.voting_closes_at is null or m.voting_closes_at > now())
+    )
+    and (
+      is_admin()
+      or exists (
+        select 1 from match_squad s
+         where s.match_id = match_comments.match_id
+           and s.player_id = auth.uid()
+      )
+    )
+  );
 
 
