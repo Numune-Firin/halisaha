@@ -216,6 +216,67 @@ Bilgisayarında çalıştığını doğruladıktan sonra, herkesin telefonundan 
 
 ---
 
+## 11b. Zamanlanmış işler (hatırlatmalar, takvim, MVP)
+
+Bazı işlerin kimse uygulamayı açmasa bile çalışması gerekir:
+
+- periyodik takvimin yaklaşan haftasını açmak,
+- oylama süresi dolan maçın MVP'sini belirlemek,
+- maçtan 24 saat sonra ödemesi eksik olanlara hatırlatma yollamak,
+- sonucu girilmemiş (askıda kalan) hafta için yöneticileri uyarmak.
+
+Bunların hepsi tek bir adreste toplandı: `/api/cron`. Adresi dışarıdan tetiklenir,
+o yüzden paylaşılan bir şifreyle korunur.
+
+**1) Şifreyi üret ve iki yere gir.** Rastgele uzun bir dize üret (ör. bir parola
+üreticiden 40 karakter). Bu değeri:
+- `.env.local` dosyasına `CRON_SECRET=...` satırı olarak,
+- Vercel'de **Settings → Environment Variables** altına `CRON_SECRET` adıyla
+gir. İkisi aynı olmalı.
+
+**2) Vercel Cron (ücretsiz planda günde bir kez).** Depoda `vercel.json` hazır:
+
+```json
+{ "crons": [{ "path": "/api/cron", "schedule": "0 6 * * *" }] }
+```
+
+Vercel, `CRON_SECRET` tanımlıysa isteği kendiliğinden doğru başlıkla gönderir;
+başka ayar gerekmez. Hobby (ücretsiz) planda cron **günde bir kez** çalışabilir.
+
+**3) Daha sık çalışsın istersen: GitHub Actions (ücretsiz).** Depoda
+`.github/workflows/cron.yml` var; yarım saatte bir aynı adresi çağırır. Çalışması
+için GitHub'da **Settings → Secrets and variables → Actions** altına iki değer gir:
+
+| Ad | Değer |
+| --- | --- |
+| `CRON_URL` | `https://<proje-adı>.vercel.app/api/cron` |
+| `CRON_SECRET` | Vercel'e girdiğin şifrenin aynısı |
+
+Bu ikisi tanımlı değilse iş sessizce atlanır, hata vermez.
+
+**4) Üçüncü bir seçenek: Supabase pg_cron.** Supabase'in ücretsiz planı da
+`pg_cron` + `pg_net` uzantılarını destekler; istersen zamanlayıcıyı tamamen
+veritabanının içinde de kurabilirsin. Yukarıdaki iki yol yettiği için bu depoda
+kullanılmadı.
+
+Doğru çalıştığını görmek için (şifreyi kendi değerinle değiştir):
+
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" https://<proje-adı>.vercel.app/api/cron
+```
+
+Şuna benzer bir cevap dönmeli:
+
+```json
+{"ranAt":"...","schedule":0,"mvp":0,"reminders":0,"unresolved":0}
+```
+
+Sayılar o çağrıda kaç iş yapıldığını söyler. İşler tekrar çalıştırmaya
+dayanıklıdır: aynı hatırlatma iki kez gitmez, o yüzden adresi elle çağırman
+zararsızdır.
+
+---
+
 ## 12. Eksik ikonlar
 
 Uygulamanın "Ana ekrana ekle" özelliği için iki ikon dosyası eksik: `public/icon-192.png` ve `public/icon-512.png`. Bu dosyalar otomatik oluşturulamadı (görsel üretimi bu kurulum sürecinin kapsamı dışında). Uygulama bu ikonlar olmadan da normal şekilde çalışır; sadece telefonda ana ekrana eklediğinde varsayılan/boş bir ikon görebilirsin.

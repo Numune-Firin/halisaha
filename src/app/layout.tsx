@@ -1,9 +1,15 @@
+import { ToastProvider } from '@/components/Toast';
 import "./globals.css";
 
 export const metadata = {
   title: 'Numune Fırın Futbol Ligi',
   description: 'Haftalık halı saha anketi, kadro ve puan durumu',
   manifest: '/manifest.json',
+  // Sekme ve ana ekran ikonu: public/firin.jpg'den uretilen kare surumler
+  icons: {
+    icon: '/icon-192.png',
+    apple: '/icon-192.png',
+  },
 };
 
 export const viewport = {
@@ -39,7 +45,9 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

@@ -37,6 +37,9 @@ export interface PollRow {
   isGuest: boolean;
   /** Uyeligi olmayan ama yeterince mac oynayip adayliktan cikmis oyuncu */
   isRegular: boolean;
+  /** Listeye yazildigi an; kendi girmis, admin eklemis ya da VIP olarak
+   *  dusmus olmasi fark etmez, hepsinde bu alan dolu. */
+  enteredAt: string;
 }
 
 /** Bir macin anket listesini sunucuda hesaplayip sirali dondurur. */
@@ -91,6 +94,7 @@ export async function getPoll(
     position: Position | null;
     isGuest: boolean;
     isRegular: boolean;
+    enteredAt: string;
   };
   const participantById = new Map<string, Participant>(
     rows.map((r) => {
@@ -107,6 +111,7 @@ export async function getPoll(
           position: source?.position ?? null,
           isGuest,
           isRegular: source?.is_regular === true,
+          enteredAt: r.entered_at as string,
         },
       ];
     }),
@@ -139,6 +144,7 @@ export async function getPoll(
       placement: p.placement,
       isGuest: participantById.get(p.playerId)?.isGuest ?? false,
       isRegular: participantById.get(p.playerId)?.isRegular ?? false,
+      enteredAt: participantById.get(p.playerId)?.enteredAt ?? '',
     })),
   };
 }

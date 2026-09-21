@@ -16,8 +16,9 @@ export default async function HomePage() {
   if (!profile) redirect('/login');
   if (profile.status !== 'active') redirect('/pending-approval');
 
-  // Anket takviminde vakti gelmis maclar burada acilir. Ucretsiz planda
-  // zamanlanmis gorev olmadigi icin tetikleyici, uygulamayi acan ilk kisidir.
+  // Anket takviminde vakti gelmis maclar burada acilir. Ayni is gunluk
+  // bakim gorevinde de kosar (/api/cron); burasi, biri uygulamayi actiginda
+  // takvimin beklemeden ilerlemesi icin.
   await ensureScheduledMatches();
 
   const supabase = await createServerSupabase();
@@ -32,7 +33,7 @@ export default async function HomePage() {
   // acik degildir, gecmis haftalar "Maclar" sayfasindan acilir.
   const { data: match } = await supabase
     .from('matches')
-    .select('id, kickoff_at, venue, status, squad_size, fee_per_player, cancellation_reason, sponsor_name')
+    .select('id, kickoff_at, venue, status, squad_size, fee_per_player, cancellation_reason, sponsor_name, poll_opened_at')
     .in('status', ['poll_open', 'squad_locked', 'cancelled'])
     .gt('kickoff_at', new Date().toISOString())
     .order('kickoff_at', { ascending: true })
@@ -68,7 +69,11 @@ export default async function HomePage() {
   }
 
   const status = match
-    ? displayStatus(match.status as MatchStatus, match.kickoff_at as string)
+    ? displayStatus(
+        match.status as MatchStatus,
+        match.kickoff_at as string,
+        match.poll_opened_at as string | null,
+      )
     : null;
   const isCancelled = status === 'cancelled';
 
@@ -139,7 +144,13 @@ export default async function HomePage() {
               <span className={MATCH_STATUS_BADGES[status]}>{MATCH_STATUS_LABELS[status]}</span>
             </div>
 
-            {!isCancelled && (
+            {status === 'upcoming' && (
+              <div className="mt-3 text-xs text-ink-300">
+                Anket {formatKickoff(match.poll_opened_at as string)} itibarıyla açılacak
+              </div>
+            )}
+
+            {!isCancelled && status !== 'upcoming' && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-300">
                 <span>
                   {isPollStillOpen ? 'Listede' : 'Kadro'} {listedCount}/{match.squad_size} kişi

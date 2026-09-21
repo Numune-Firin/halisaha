@@ -3,6 +3,7 @@ import { AppShell } from '@/components/AppShell';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { createTeam, deleteTeam, renameTeam, setTeamSlot } from './actions';
+import { ToastForm } from '@/components/ToastForm';
 
 const SLOT_LABELS: Record<number, string> = { 1: '1. takım', 2: '2. takım' };
 
@@ -55,7 +56,7 @@ export default async function TeamsPage() {
       <section className="flex flex-col gap-3">
         <h2 className="section-title">Yeni takım tanımla</h2>
 
-        <form action={createTeam} className="card card-pad flex flex-col gap-3">
+        <ToastForm action={createTeam} className="card card-pad flex flex-col gap-3">
           <div className="field">
             <label className="label" htmlFor="name">
               Takım adı
@@ -75,7 +76,7 @@ export default async function TeamsPage() {
             </p>
           </div>
           <button className="btn btn-primary btn-block">Takımı ekle</button>
-        </form>
+        </ToastForm>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -108,19 +109,19 @@ export default async function TeamsPage() {
 
                     <div className="flex flex-wrap gap-2">
                       {slot !== 1 && (
-                        <form action={setTeamSlot.bind(null, id, 1)}>
+                        <ToastForm action={setTeamSlot.bind(null, id, 1)}>
                           <button className="btn btn-ghost btn-sm">1. takım yap</button>
-                        </form>
+                        </ToastForm>
                       )}
                       {slot !== 2 && (
-                        <form action={setTeamSlot.bind(null, id, 2)}>
+                        <ToastForm action={setTeamSlot.bind(null, id, 2)}>
                           <button className="btn btn-ghost btn-sm">2. takım yap</button>
-                        </form>
+                        </ToastForm>
                       )}
                       {slot !== null && (
-                        <form action={setTeamSlot.bind(null, id, null)}>
+                        <ToastForm action={setTeamSlot.bind(null, id, null)}>
                           <button className="btn btn-ghost btn-sm">Sahadan çıkar</button>
-                        </form>
+                        </ToastForm>
                       )}
                     </div>
                   </div>
@@ -130,7 +131,7 @@ export default async function TeamsPage() {
                       Düzenle
                     </summary>
 
-                    <form
+                    <ToastForm
                       action={renameTeam.bind(null, id)}
                       className="mt-3 flex flex-wrap items-end gap-2"
                     >
@@ -146,12 +147,12 @@ export default async function TeamsPage() {
                         />
                       </div>
                       <button className="btn btn-ghost btn-sm">Kaydet</button>
-                    </form>
+                    </ToastForm>
 
                     {slot === null && (
-                      <form action={deleteTeam.bind(null, id)} className="mt-3">
+                      <ToastForm action={deleteTeam.bind(null, id)} className="mt-3">
                         <button className="btn btn-danger btn-sm">Takımı sil</button>
-                      </form>
+                      </ToastForm>
                     )}
 
                     <p className="hint mt-3">

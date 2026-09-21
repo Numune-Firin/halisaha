@@ -1,4 +1,6 @@
 import type { RatingSummary } from '@/lib/db/ratings';
+import { ToastForm } from '@/components/ToastForm';
+import type { ActionResult } from '@/lib/actions/result';
 
 /**
  * Oyuncunun genel yildizi. Yonetici elle bir deger yazdiysa (override) o
@@ -12,7 +14,7 @@ export function RatingCell({
   canEdit,
   label,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<ActionResult>;
   override: number | null;
   summary: RatingSummary | null;
   canEdit: boolean;
@@ -29,7 +31,7 @@ export function RatingCell({
   }
 
   return (
-    <form action={action} className="flex items-center gap-1.5">
+    <ToastForm action={action} className="flex items-center gap-1.5">
       <span className="text-amber-400" aria-hidden>
         ★
       </span>
@@ -50,6 +52,6 @@ export function RatingCell({
         className="input input-sm w-16"
       />
       <button className="btn btn-ghost btn-sm">Kaydet</button>
-    </form>
+    </ToastForm>
   );
 }

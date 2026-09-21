@@ -18,6 +18,7 @@ import {
 import { RatingCell } from './RatingCell';
 import { TierSelect } from './TierSelect';
 import { TIER_BADGES, TIER_LABELS, type PlayerTier } from '@/lib/ui/tier';
+import { ToastForm } from '@/components/ToastForm';
 
 export default async function PlayersPage() {
   const profile = await getCurrentProfile();
@@ -29,14 +30,14 @@ export default async function PlayersPage() {
 
   const { data: members, error: memberError } = await supabase
     .from('profiles')
-    .select('id, full_name, position, role, status, override_rating, tier, email')
+    .select('id, full_name, position, role, status, override_rating, tier, email, auto_entry_seconds')
     .in('status', isAdmin ? ['active', 'inactive'] : ['active'])
     .order('full_name');
   if (memberError) throw new Error(memberError.message);
 
   const { data: guests, error: guestError } = await supabase
     .from('guest_players')
-    .select('id, full_name, position, is_active, is_regular, override_rating, tier')
+    .select('id, full_name, position, is_active, is_regular, override_rating, tier, auto_entry_seconds')
     .order('full_name');
   if (guestError) throw new Error(guestError.message);
 
@@ -91,9 +92,11 @@ export default async function PlayersPage() {
     >
       {isAdmin && (
         <p className="hint">
-          <strong>VIP (sabit)</strong> seçilen oyuncu her hafta anket açılır açılmaz listeye
-          kendiliğinden yazılır, girmesine gerek kalmaz. <strong>Öncelikli</strong> girer ama
-          normal girenlerin hep önünde sıralanır.
+          <strong>VIP (sabit)</strong> ve <strong>Öncelikli</strong> oyuncular her hafta anket
+          açılır açılmaz listeye kendiliğinden yazılır, girmelerine gerek kalmaz. Yanlarındaki
+          <strong> sn</strong> kutusu, anket açıldıktan kaç saniye sonra girmiş görüneceklerini
+          belirler — hepsi aynı saniyede düşmesin diye. Sıralama önce katmana bakar: VIP, sonra
+          öncelikli, en son normal girişler.
         </p>
       )}
 
@@ -132,11 +135,11 @@ export default async function PlayersPage() {
                       </span>
                     )}
                     {isAdmin && m.status === 'active' && (
-                      <form action={setMemberRole.bind(null, id, m.role !== 'admin')}>
+                      <ToastForm action={setMemberRole.bind(null, id, m.role !== 'admin')}>
                         <button className="text-xs text-ink-300 underline">
                           {m.role === 'admin' ? 'Yöneticilikten çıkar' : 'Yönetici yap'}
                         </button>
-                      </form>
+                      </ToastForm>
                     )}
                   </div>
                 </div>
@@ -145,6 +148,7 @@ export default async function PlayersPage() {
                   <TierSelect
                     action={setPlayerTier.bind(null, 'member', id)}
                     value={m.tier as string}
+                    seconds={Number(m.auto_entry_seconds ?? 0)}
                     label={name}
                   />
                 )}
@@ -178,7 +182,7 @@ export default async function PlayersPage() {
         <section className="flex flex-col gap-3">
           <h2 className="section-title">Elle oyuncu ekle</h2>
 
-          <form action={createPlayer} className="card card-pad flex flex-col gap-4">
+          <ToastForm action={createPlayer} className="card card-pad flex flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="field">
                 <label className="label" htmlFor="fullName">
@@ -227,7 +231,7 @@ export default async function PlayersPage() {
             </label>
 
             <button className="btn btn-primary btn-block">Oyuncuyu ekle</button>
-          </form>
+          </ToastForm>
         </section>
       )}
 
@@ -269,18 +273,18 @@ export default async function PlayersPage() {
                       )}
                       {!g.is_active && <span className="badge badge-muted">Listeden çıkarıldı</span>}
                       {isAdmin && (
-                        <form action={setGuestRegular.bind(null, id, !isRegular)}>
+                        <ToastForm action={setGuestRegular.bind(null, id, !isRegular)}>
                           <button className="text-xs text-ink-300 underline">
                             {isRegular ? 'Adaylığa al' : 'Asıl yap'}
                           </button>
-                        </form>
+                        </ToastForm>
                       )}
                       {isAdmin && (
-                        <form action={setGuestActive.bind(null, id, !g.is_active)}>
+                        <ToastForm action={setGuestActive.bind(null, id, !g.is_active)}>
                           <button className="text-xs text-ink-300 underline">
                             {g.is_active ? 'Listeden çıkar' : 'Listeye geri al'}
                           </button>
-                        </form>
+                        </ToastForm>
                       )}
                     </div>
                   </div>
@@ -289,6 +293,7 @@ export default async function PlayersPage() {
                     <TierSelect
                       action={setPlayerTier.bind(null, 'guest', id)}
                       value={g.tier as string}
+                      seconds={Number(g.auto_entry_seconds ?? 0)}
                       label={name}
                     />
                   )}

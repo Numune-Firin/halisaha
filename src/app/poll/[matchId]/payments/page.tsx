@@ -17,11 +17,12 @@ import {
   addMatchLedgerEntry,
   completeMatch,
   deleteMatchLedgerEntry,
+  reverseMatchLedgerEntry,
   reopenPayments,
-  savePaymentAmount,
   sendPaymentReminder,
-  setPayment,
 } from './actions';
+import { ToastForm } from '@/components/ToastForm';
+import { SquadPayments } from './SquadPayments';
 
 type LedgerRow = {
   id: string;
@@ -29,6 +30,10 @@ type LedgerRow = {
   category: LedgerCategory;
   amount: number;
   description: string;
+  /** Dolu ise bu satir bir ters fistir */
+  reverses_id: string | null;
+  /** Dolu ise bu satir ters fisle iptal edilmistir */
+  reversed_at: string | null;
 };
 
 export default async function PaymentsPage({
@@ -62,7 +67,7 @@ export default async function PaymentsPage({
   // Bu haftanin oyuncu odemesi disindaki gelir ve giderleri
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from('ledger_entries')
-    .select('id, direction, category, amount, description')
+    .select('id, direction, category, amount, description, reverses_id, reversed_at')
     .eq('match_id', matchId)
     .order('created_at', { ascending: true });
   if (ledgerError) throw new Error(ledgerError.message);
@@ -131,6 +136,27 @@ export default async function PaymentsPage({
             </div>
           </section>
 
+          {/* Kapanmis haftanin parasi kilitlidir; kilidi acmak yoneticinin bir
+              tiklamasi kadar uzakta ama bilincli bir adim olsun diye ayri */}
+          {isClosed && (
+            <ToastForm
+              action={reopenPayments.bind(null, matchId)}
+              className="card card-pad flex flex-wrap items-center gap-3 border-amber-500/40 bg-amber-500/5"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-amber-400">Muhasebe kapalı</p>
+                <p className="hint mt-0.5">
+                  Bu haftanın ödemeleri ve kasa hareketleri kilitli. Düzeltme yapman
+                  gerekiyorsa geri aç: maç &quot;Oynandı&quot; durumuna döner, kayıtlar
+                  olduğu gibi kalır, işin bitince tekrar kapatırsın.
+                </p>
+              </div>
+              <button className="btn btn-primary btn-sm whitespace-nowrap">
+                Muhasebeyi geri aç
+              </button>
+            </ToastForm>
+          )}
+
           <section className="flex flex-col gap-3">
             <h2 className="section-title">Bu haftanın gelir ve giderleri</h2>
 
@@ -154,33 +180,69 @@ export default async function PaymentsPage({
 
               {ledger.length > 0 && (
                 <ul className="divide-line mt-3 border-t border-[color:var(--line)]">
-                  {ledger.map((row) => (
-                    <li key={row.id} className="flex flex-wrap items-center gap-3 py-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm text-frost-100">
-                          {LEDGER_CATEGORY_LABELS[row.category]}
+                  {ledger.map((row) => {
+                    const isReversed = row.reversed_at !== null;
+                    const isReversal = row.reverses_id !== null;
+                    return (
+                      <li key={row.id} className="flex flex-wrap items-center gap-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`truncate text-sm ${
+                                isReversed ? 'text-ink-500 line-through' : 'text-frost-100'
+                              }`}
+                            >
+                              {LEDGER_CATEGORY_LABELS[row.category]}
+                            </span>
+                            {isReversed && <span className="badge badge-muted">İptal edildi</span>}
+                            {isReversal && <span className="badge badge-muted">Ters fiş</span>}
+                          </div>
+                          <div className="truncate text-xs text-ink-500">
+                            {row.description || 'Açıklama yok'}
+                          </div>
                         </div>
-                        <div className="truncate text-xs text-ink-500">
-                          {row.description || 'Açıklama yok'}
-                        </div>
-                      </div>
-                      <span
-                        className={`text-sm font-semibold ${
-                          row.direction === 'income' ? 'text-emerald-300' : 'text-red-300'
-                        }`}
-                      >
-                        {row.direction === 'income' ? '+' : '−'}
-                        {money(row.amount)}
-                      </span>
-                      <form action={deleteMatchLedgerEntry.bind(null, matchId, row.id)}>
-                        <button className="text-xs text-ink-500 underline">Sil</button>
-                      </form>
-                    </li>
-                  ))}
+                        <span
+                          className={`text-sm font-semibold ${
+                            isReversed
+                              ? 'text-ink-500 line-through'
+                              : row.direction === 'income'
+                                ? 'text-emerald-300'
+                                : 'text-red-300'
+                          }`}
+                        >
+                          {row.direction === 'income' ? '+' : '−'}
+                          {money(row.amount)}
+                        </span>
+
+                        {!isClosed && !isReversed && !isReversal && (
+                          <ToastForm action={reverseMatchLedgerEntry.bind(null, matchId, row.id)}>
+                            <button
+                              className="text-xs text-ink-300 underline"
+                              title="Kaydı iptal eden aynı tutarda ters fiş keser; ikisi de listede kalır"
+                            >
+                              Ters fiş
+                            </button>
+                          </ToastForm>
+                        )}
+
+                        {!isClosed && (
+                          <ToastForm action={deleteMatchLedgerEntry.bind(null, matchId, row.id)}>
+                            <button
+                              className="text-xs text-ink-500 underline"
+                              title="Kaydı tamamen kaldırır, iz bırakmaz"
+                            >
+                              Sil
+                            </button>
+                          </ToastForm>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 
-              <form
+              {!isClosed && (
+              <ToastForm
                 action={addMatchLedgerEntry.bind(null, matchId)}
                 className="mt-3 flex flex-wrap items-end gap-2 border-t border-[color:var(--line)] pt-3"
               >
@@ -236,72 +298,32 @@ export default async function PaymentsPage({
                 </div>
 
                 <button className="btn btn-ghost btn-sm">Ekle</button>
-              </form>
+              </ToastForm>
+              )}
 
               <p className="hint mt-2">
                 Oyunculardan toplanan parayı buraya yazma; o, aşağıdaki kadro listesinden geliyor.
-                Kayıt bu maça ve macin tarihine bağlanır, muhasebede hafta hafta görünür.
+                Kayıt bu maça ve maçın tarihine bağlanır, muhasebede hafta hafta görünür.
+                Yanlış girdiysen <strong>Ters fiş</strong> kes: kayıt listede kalır, aynı tutarda
+                ters yönlü bir fiş eklenir ve ikisi birbirini götürür. Düzeltmek için ters fiş
+                kesip doğrusunu yeniden gir. <strong>Sil</strong> ise izi de yok eder, yalnızca
+                daha kimsenin görmediği kayıt için.
               </p>
             </div>
           </section>
 
-          <section className="flex flex-col gap-3">
-            <h2 className="section-title">Kadro</h2>
-
-            <ul className="card divide-line">
-              {squad.map((m) => {
-                const isPaid = m.amountPaid >= fee && fee > 0;
-                return (
-                  <li key={m.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-frost-100">
-                        {m.fullName}
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                        {isPaid ? (
-                          <span className="badge badge-live">Ödedi</span>
-                        ) : m.amountPaid > 0 ? (
-                          <span className="badge badge-vip">Eksik · {money(m.amountPaid)}</span>
-                        ) : (
-                          <span className="badge badge-muted">Ödemedi</span>
-                        )}
-                        {m.isGuest && !m.isRegular && (
-                          <span className="badge badge-muted">Aday</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <form
-                      action={savePaymentAmount.bind(null, matchId, m.id)}
-                      className="flex items-center gap-1.5"
-                    >
-                      <input
-                        name="amount"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        defaultValue={m.amountPaid || ''}
-                        placeholder={String(fee)}
-                        aria-label={`${m.fullName} ödediği tutar`}
-                        className="input input-sm w-24"
-                      />
-                      <button className="btn btn-ghost btn-sm">Kaydet</button>
-                    </form>
-
-                    {isPaid ? (
-                      <form action={setPayment.bind(null, matchId, m.id, 0)}>
-                        <button className="btn btn-ghost btn-sm">Geri al</button>
-                      </form>
-                    ) : (
-                      <form action={setPayment.bind(null, matchId, m.id, fee)}>
-                        <button className="btn btn-go btn-sm">Ödedi</button>
-                      </form>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+          <SquadPayments
+            matchId={matchId}
+            fee={fee}
+            locked={isClosed}
+            squad={squad.map((m) => ({
+              id: m.id,
+              fullName: m.fullName,
+              amountPaid: m.amountPaid,
+              isGuest: m.isGuest,
+              isRegular: m.isRegular,
+            }))}
+          />
 
           <section className="flex flex-col gap-3">
             <h2 className="section-title">Ödeme hatırlatması</h2>
@@ -332,24 +354,24 @@ export default async function PaymentsPage({
                   </p>
 
                   <div className="flex flex-wrap gap-2">
-                    <form action={sendPaymentReminder.bind(null, matchId, false)}>
+                    <ToastForm action={sendPaymentReminder.bind(null, matchId, false)}>
                       <button
                         className="btn btn-primary btn-sm"
                         disabled={!canRemind || unpaidWithMail.length === 0 || Boolean(reminderSentAt)}
                       >
                         Hatırlatma gönder
                       </button>
-                    </form>
+                    </ToastForm>
 
                     {reminderSentAt && (
-                      <form action={sendPaymentReminder.bind(null, matchId, true)}>
+                      <ToastForm action={sendPaymentReminder.bind(null, matchId, true)}>
                         <button
                           className="btn btn-ghost btn-sm"
                           disabled={unpaidWithMail.length === 0}
                         >
                           Tekrar gönder
                         </button>
-                      </form>
+                      </ToastForm>
                     )}
                   </div>
                 </>
@@ -361,15 +383,15 @@ export default async function PaymentsPage({
             <h2 className="section-title">Muhasebeyi kapat</h2>
 
             {isClosed ? (
-              <form action={reopenPayments.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+              <ToastForm action={reopenPayments.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
                 <p className="text-sm text-ink-300">
                   Bu maçın muhasebesi kapandı. Geri açarsan maç yeniden &quot;Oynandı&quot;
                   durumuna döner, ödeme kayıtları olduğu gibi kalır.
                 </p>
                 <button className="btn btn-ghost btn-sm self-start">Muhasebeyi geri aç</button>
-              </form>
+              </ToastForm>
             ) : (
-              <form action={completeMatch.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+              <ToastForm action={completeMatch.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
                 <p className="text-sm text-ink-300">
                   Herkes ödedikten sonra maçı kapat: durumu &quot;Tamamlandı&quot; olur. Skor ve
                   puan durumu bundan etkilenmez.
@@ -387,7 +409,7 @@ export default async function PaymentsPage({
                 >
                   Ödemeleri kapat
                 </button>
-              </form>
+              </ToastForm>
             )}
           </section>
         </>

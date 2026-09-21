@@ -4,7 +4,15 @@ import { AppShell } from '@/components/AppShell';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { formatDay, formatKickoff, type MatchStatus } from '@/lib/ui/format';
-import { LEDGER_CATEGORY_LABELS, money, type LedgerCategory } from '@/lib/ui/ledger';
+import {
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  LEDGER_CATEGORY_LABELS,
+  money,
+  type LedgerCategory,
+} from '@/lib/ui/ledger';
+import { createAdjustmentEntry, deleteEntry, reverseEntry } from './actions';
+import { ToastForm } from '@/components/ToastForm';
 
 
 type MatchRow = {
@@ -19,6 +27,8 @@ type MatchRow = {
 type LedgerRow = {
   id: string;
   match_id: string | null;
+  reverses_id: string | null;
+  reversed_at: string | null;
   direction: 'income' | 'expense';
   category: LedgerCategory;
   amount: number;
@@ -73,7 +83,15 @@ export default async function AccountingPage({
     );
   }
 
-  // Iptal edilen hafta parasal olarak yoktur; sayilmaz.
+  // Iptal edilen hafta parasal olarak yoktur: ne oyuncu odemesi ne de o
+  // haftaya yazilmis gelir/gider kasaya girer.
+  const { data: cancelledRows } = await supabase
+    .from('matches')
+    .select('id')
+    .eq('season_id', seasonId)
+    .eq('status', 'cancelled');
+  const cancelledIds = new Set((cancelledRows ?? []).map((m) => m.id as string));
+
   const { data: matchRows, error: matchError } = await supabase
     .from('matches')
     .select('id, kickoff_at, venue, status, fee_per_player, sponsor_name')
@@ -136,16 +154,18 @@ export default async function AccountingPage({
   // Oyuncu odemeleri disindaki gelir ve giderler
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from('ledger_entries')
-    .select('id, match_id, direction, category, amount, description, occurred_on')
+    .select('id, match_id, direction, category, amount, description, occurred_on, reverses_id, reversed_at')
     .eq('season_id', seasonId)
     .order('occurred_on', { ascending: false })
     .order('created_at', { ascending: false });
   if (ledgerError) throw new Error(ledgerError.message);
 
-  const ledger = (ledgerRows ?? []).map((r) => ({
-    ...r,
-    amount: Number(r.amount),
-  })) as unknown as LedgerRow[];
+  const ledger = (ledgerRows ?? [])
+    .filter((r) => !cancelledIds.has(r.match_id as string))
+    .map((r) => ({
+      ...r,
+      amount: Number(r.amount),
+    })) as unknown as LedgerRow[];
 
   const otherIncome = ledger
     .filter((r) => r.direction === 'income')
@@ -156,6 +176,10 @@ export default async function AccountingPage({
 
   const totalIncome = totalCollected + otherIncome;
   const balance = totalIncome - totalExpense;
+
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Istanbul' }).format(
+    new Date(),
+  );
 
   // Gider kalemlerinin kirilimi: hangi basliga ne kadar gitti
   const expenseByCategory = new Map<LedgerCategory, number>();
@@ -240,8 +264,97 @@ export default async function AccountingPage({
         </h2>
 
         <p className="hint">
-          Kayıtlar her maçın Ödemeler sayfasından girilir; haftaya tıklayınca oraya gidersin.
+          Haftalık gelir/gider her maçın Ödemeler sayfasından girilir; haftaya tıklayınca oraya
+          gidersin. Buradan da her kaydı iptal edebilir ya da silebilirsin.
         </p>
+
+        <details className="card card-pad">
+          <summary className="cursor-pointer text-sm font-medium text-azure-400">
+            Kasa düzeltmesi ekle
+          </summary>
+
+          <ToastForm
+            action={createAdjustmentEntry.bind(null, seasonId)}
+            className="mt-3 flex flex-wrap items-end gap-2"
+          >
+            <div className="field min-w-[10rem] flex-1">
+              <label className="label" htmlFor="adjCategory">
+                Kalem
+              </label>
+              <select
+                id="adjCategory"
+                name="category"
+                defaultValue="other_expense"
+                className="input"
+              >
+                <optgroup label="Gelir">
+                  {INCOME_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {LEDGER_CATEGORY_LABELS[c]}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Gider">
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {LEDGER_CATEGORY_LABELS[c]}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            <div className="field w-28">
+              <label className="label" htmlFor="adjAmount">
+                Tutar (₺)
+              </label>
+              <input
+                id="adjAmount"
+                name="amount"
+                type="number"
+                min={0}
+                step="0.01"
+                required
+                className="input"
+              />
+            </div>
+
+            <div className="field w-44">
+              <label className="label" htmlFor="adjDate">
+                Tarih
+              </label>
+              <input
+                id="adjDate"
+                name="occurredOn"
+                type="date"
+                required
+                defaultValue={today}
+                className="input"
+              />
+            </div>
+
+            <div className="field min-w-[12rem] flex-1">
+              <label className="label" htmlFor="adjDescription">
+                Açıklama
+              </label>
+              <input
+                id="adjDescription"
+                name="description"
+                type="text"
+                maxLength={200}
+                placeholder="Örn. devreden kasa, sayim farkı"
+                className="input"
+              />
+            </div>
+
+            <button className="btn btn-ghost btn-sm">Ekle</button>
+          </ToastForm>
+
+          <p className="hint mt-2">
+            Bu kayıt bir haftaya bağlanmaz, doğrudan sezon kasasına yazılır. Devreden bakiye,
+            sayım farkı ya da tek seferlik masraf için.
+          </p>
+        </details>
 
         {ledger.length === 0 ? (
           <div className="card card-pad text-sm text-ink-300">
@@ -257,6 +370,7 @@ export default async function AccountingPage({
                   <th className="px-3 py-2.5 text-left">Kalem</th>
                   <th className="px-3 py-2.5 text-left">Detay</th>
                   <th className="px-3 py-2.5 text-right">Tutar</th>
+                  <th className="px-3 py-2.5" />
                 </tr>
               </thead>
               <tbody className="divide-line">
@@ -274,8 +388,18 @@ export default async function AccountingPage({
                         formatDay(row.occurred_on)
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-frost-100">
-                      {LEDGER_CATEGORY_LABELS[row.category]}
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={row.reversed_at ? 'text-ink-500 line-through' : 'text-frost-100'}
+                      >
+                        {LEDGER_CATEGORY_LABELS[row.category]}
+                      </span>
+                      {row.reversed_at && (
+                        <span className="badge badge-muted ml-2">İptal</span>
+                      )}
+                      {row.reverses_id && (
+                        <span className="badge badge-muted ml-2">Ters fiş</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-ink-300">{row.description || '—'}</td>
                     <td
@@ -285,6 +409,32 @@ export default async function AccountingPage({
                     >
                       {row.direction === 'income' ? '+' : '−'}
                       {money(row.amount)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                      {!row.reversed_at && !row.reverses_id && (
+                        <ToastForm
+                          action={reverseEntry.bind(null, row.id, row.match_id)}
+                          className="inline"
+                        >
+                          <button
+                            className="text-xs text-ink-300 underline"
+                            title="Aynı tutarda ters fiş keser; iki kayıt da listede kalır"
+                          >
+                            Ters fiş
+                          </button>
+                        </ToastForm>
+                      )}
+                      <ToastForm
+                        action={deleteEntry.bind(null, row.id, row.match_id)}
+                        className="ml-2 inline"
+                      >
+                        <button
+                          className="text-xs text-ink-500 underline"
+                          title="Kaydı tamamen kaldırır"
+                        >
+                          Sil
+                        </button>
+                      </ToastForm>
                     </td>
                   </tr>
                 ))}

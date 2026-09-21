@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef } from 'react';
+import { ToastForm } from '@/components/ToastForm';
+import type { ActionResult } from '@/lib/actions/result';
 
 const STARS = [1, 2, 3, 4, 5];
 
@@ -13,14 +15,14 @@ export function StarRating({
   value,
   label,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<ActionResult>;
   value: number | null;
   label: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
-    <form ref={formRef} action={action} className="flex items-center gap-0.5">
+    <ToastForm ref={formRef} action={action} className="flex items-center gap-0.5">
       {STARS.map((star) => (
         <label
           key={star}
@@ -39,6 +41,6 @@ export function StarRating({
           ★
         </label>
       ))}
-    </form>
+    </ToastForm>
   );
 }

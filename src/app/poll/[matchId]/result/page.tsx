@@ -7,6 +7,7 @@ import { getSquad } from '@/lib/db/squad';
 import { formatKickoff } from '@/lib/ui/format';
 import { clearResult, refreshTeamNames, saveResult, saveTeams } from './actions';
 import { TeamPicker } from './TeamPicker';
+import { ToastForm } from '@/components/ToastForm';
 
 export default async function ResultPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = await params;
@@ -71,14 +72,14 @@ export default async function ResultPage({ params }: { params: Promise<{ matchId
             </p>
 
             {namesAreStale && (
-              <form action={refreshTeamNames.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+              <ToastForm action={refreshTeamNames.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
                 <p className="text-sm text-ink-300">
                   Sahadaki takımlar değişmiş: şu an <strong>{currentBlack}</strong> /{' '}
                   <strong>{currentWhite}</strong>. Bu maçta hâlâ {blackName} / {whiteName}{' '}
                   yazıyor.
                 </p>
                 <button className="btn btn-ghost btn-sm self-start">Adları güncelle</button>
-              </form>
+              </ToastForm>
             )}
 
             <TeamPicker
@@ -92,7 +93,7 @@ export default async function ResultPage({ params }: { params: Promise<{ matchId
           <section className="flex flex-col gap-3">
             <h2 className="section-title">Skor</h2>
 
-            <form action={saveResult.bind(null, matchId)} className="card card-pad flex flex-col gap-4">
+            <ToastForm action={saveResult.bind(null, matchId)} className="card card-pad flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="field">
                   <label className="label" htmlFor="blackScore">
@@ -128,19 +129,19 @@ export default async function ResultPage({ params }: { params: Promise<{ matchId
                 Sonradan düzeltirsen sıralama da güncellenir.
               </p>
               <button className="btn btn-primary btn-block">Skoru kaydet</button>
-            </form>
+            </ToastForm>
 
             <Link href={`/poll/${matchId}/payments`} className="btn btn-ghost btn-block">
               Ödemelere geç
             </Link>
 
             {hasResult && (
-              <form action={clearResult.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+              <ToastForm action={clearResult.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
                 <p className="text-sm text-ink-300">
                   Skoru silersen maç kadro kesin durumuna döner ve puan durumundan çıkar.
                 </p>
                 <button className="btn btn-danger btn-sm self-start">Skoru sil</button>
-              </form>
+              </ToastForm>
             )}
           </section>
         </>

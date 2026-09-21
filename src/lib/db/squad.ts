@@ -1,4 +1,5 @@
 import { createServerSupabase } from '@/lib/supabase/server';
+import { getRatingSummary } from '@/lib/db/ratings';
 import type { Team } from '@/lib/standings/table';
 import type { Position } from '@/lib/poll/types';
 
@@ -19,6 +20,11 @@ export interface SquadMember {
   team: Team | null;
   /** Bu mac icin odenen tutar; 0 ise odeme yok */
   amountPaid: number;
+  /**
+   * Oyuncunun genel yildizi: yonetici elle yazdiysa o, yoksa butun maclardan
+   * gelen ortalama. Hic oy almamis oyuncuda null olur.
+   */
+  rating: number | null;
 }
 
 /** Bir macin kesinlesmis kadrosu, isimleriyle ve takimlariyla. */
@@ -27,9 +33,12 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
 
   const { data, error } = await supabase
     .from('match_squad')
-    .select('id, team, amount_paid, player_id, guest_id, profiles(full_name, position, email), guest_players(full_name, is_regular, position)')
+    .select('id, team, amount_paid, player_id, guest_id, profiles(full_name, position, email, override_rating), guest_players(full_name, is_regular, position, override_rating)')
     .eq('match_id', matchId);
   if (error) throw new Error(error.message);
+
+  // Takim dengelemesi yildiza bakar; elle yazilan deger ortalamayi ezer
+  const summary = await getRatingSummary();
 
   return (data ?? [])
     .map((r) => {
@@ -39,7 +48,13 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
         is_regular?: boolean;
         position: Position | null;
         email?: string | null;
+        override_rating?: number | string | null;
       } | null;
+      const participantId = ((r.player_id ?? r.guest_id) as string) ?? '';
+      const override =
+        source?.override_rating === null || source?.override_rating === undefined
+          ? null
+          : Number(source.override_rating);
       return {
         id: r.id as string,
         playerId: (r.player_id as string | null) ?? null,
@@ -51,6 +66,7 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
         email: source?.email ?? null,
         team: (r.team as Team | null) ?? null,
         amountPaid: Number(r.amount_paid ?? 0),
+        rating: override ?? summary.get(participantId)?.average ?? null,
       };
     })
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'tr'));

@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { formatShort } from '@/lib/ui/format';
 import { createAdjustment, deleteAdjustment } from './actions';
+import { ToastForm } from '@/components/ToastForm';
 
 /** "+8 sn" / "-5 sn" */
 function formatSeconds(seconds: number) {
@@ -44,7 +45,7 @@ export default async function AdjustmentsPage() {
       <section className="flex flex-col gap-3">
         <h2 className="section-title">Yeni kayıt</h2>
 
-        <form action={createAdjustment} className="card card-pad flex flex-col gap-4">
+        <ToastForm action={createAdjustment} className="card card-pad flex flex-col gap-4">
           <div className="field">
             <label className="label" htmlFor="playerId">
               Oyuncu
@@ -107,7 +108,7 @@ export default async function AdjustmentsPage() {
           </div>
 
           <button className="btn btn-primary btn-block">Kaydet</button>
-        </form>
+        </ToastForm>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -141,9 +142,9 @@ export default async function AdjustmentsPage() {
                     {formatSeconds(seconds)}
                   </span>
 
-                  <form action={deleteAdjustment.bind(null, r.id as string)}>
+                  <ToastForm action={deleteAdjustment.bind(null, r.id as string)}>
                     <button className="text-xs text-ink-300 underline">Sil</button>
-                  </form>
+                  </ToastForm>
                 </li>
               );
             })}

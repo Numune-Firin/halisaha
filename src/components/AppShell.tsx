@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { signOut } from '@/app/auth/actions';
 import { createServerSupabase, type Profile } from '@/lib/supabase/server';
 import { AppChrome, type NavGroup } from './AppChrome';
+import { UnresolvedBanner } from './UnresolvedBanner';
 
 const PLAYER_GROUP: NavGroup = {
   title: 'Lig',
@@ -81,6 +82,8 @@ export async function AppShell({
       subtitle={subtitle}
       action={action}
     >
+      {/* Askida kalan hafta yoneticiyi her sayfada karsilar */}
+      {isAdmin && <UnresolvedBanner />}
       {children}
     </AppChrome>
   );

@@ -22,7 +22,7 @@ export default async function MatchesPage() {
 
   const { data: matches, error } = await supabase
     .from('matches')
-    .select('id, kickoff_at, venue, status, squad_size, black_score, white_score, cancellation_reason, sponsor_name')
+    .select('id, kickoff_at, venue, status, squad_size, black_score, white_score, cancellation_reason, sponsor_name, poll_opened_at')
     .order('kickoff_at', { ascending: false })
     .limit(50);
   if (error) throw new Error(error.message);
@@ -40,7 +40,11 @@ export default async function MatchesPage() {
       ) : (
         <ul className="card divide-line">
           {rows.map((m) => {
-            const status = displayStatus(m.status as MatchStatus, m.kickoff_at as string);
+            const status = displayStatus(
+              m.status as MatchStatus,
+              m.kickoff_at as string,
+              m.poll_opened_at as string | null,
+            );
             return (
               <li key={m.id}>
                 <Link href={`/poll/${m.id}`} className="card-link flex items-center gap-3 px-4 py-3">

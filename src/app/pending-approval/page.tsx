@@ -6,10 +6,10 @@ export default function PendingApprovalPage() {
     <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-5 py-10">
       <div className="card w-full max-w-sm px-6 py-8 text-center">
         <Image
-          src="/sponsor.jpg"
+          src="/firin.jpg"
           alt="Numune Fırın Futbol Ligi"
-          width={320}
-          height={114}
+          width={1794}
+          height={592}
           className="mx-auto w-44 rounded-lg"
         />
         <span className="badge badge-muted mt-6">Onay bekleniyor</span>

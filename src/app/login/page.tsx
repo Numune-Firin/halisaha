@@ -18,44 +18,47 @@ export default function LoginPage() {
     if (error) setBusy(false);
   }
 
+  // Ust bolum ortalanir, altbilgi ekranin dibinde kalir
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-5 py-10">
-      <div className="card w-full max-w-sm overflow-hidden">
-        <div className="flex flex-col items-center gap-4 border-b border-[color:var(--line)] bg-[color:var(--surface)] px-6 py-8">
-          <Image
-            src="/sponsor.jpg"
-            alt="Numune Fırın Futbol Ligi"
-            width={320}
-            height={114}
-            priority
-            className="w-56 rounded-lg shadow-lg"
-          />
-          <p className="text-center text-sm text-ink-300">
-            Haftalık halı saha anketi, kadro ve puan durumu tek yerde.
-          </p>
+    <main className="grid min-h-dvh grid-rows-[1fr_auto] px-5 py-10">
+      <div className="flex flex-col items-center justify-center gap-6">
+        <div className="card w-full max-w-sm overflow-hidden">
+          <div className="flex flex-col items-center gap-4 border-b border-[color:var(--line)] bg-[color:var(--surface)] px-6 py-8">
+            <Image
+              src="/firin.jpg"
+              alt="Numune Fırın Futbol Ligi"
+              width={1794}
+              height={592}
+              priority
+              className="w-56 rounded-lg shadow-lg"
+            />
+            <p className="text-center text-sm text-ink-300">
+              Haftalık halı saha anketi, kadro ve puan durumu tek yerde.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 px-6 py-6">
+            <button onClick={signInWithGoogle} disabled={busy} className="btn btn-primary btn-block">
+              <GoogleMark />
+              {busy ? 'Yönlendiriliyor…' : 'Google ile giriş yap'}
+            </button>
+            <p className="text-center text-xs leading-relaxed text-ink-300">
+              Lig kapalı bir gruptur. İlk girişinden sonra hesabın yönetici onayına düşer,
+              onaylandığında ankete girebilirsin.
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3 px-6 py-6">
-          <button onClick={signInWithGoogle} disabled={busy} className="btn btn-primary btn-block">
-            <GoogleMark />
-            {busy ? 'Yönlendiriliyor…' : 'Google ile giriş yap'}
-          </button>
-          <p className="text-center text-xs leading-relaxed text-ink-300">
-            Lig kapalı bir gruptur. İlk girişinden sonra hesabın yönetici onayına düşer,
-            onaylandığında ankete girebilirsin.
-          </p>
+        <div className="flex items-center gap-2 text-[0.7rem] uppercase tracking-widest text-ink-500">
+          <span className="h-px w-8 bg-[color:var(--line-strong)]" />
+          Numune Fırın Futbol Ligi
+          <span className="h-px w-8 bg-[color:var(--line-strong)]" />
         </div>
       </div>
 
-      <p className="text-center text-xs text-ink-500">
+      <p className="mt-8 text-center text-xs text-ink-500">
         Numune Fırın Football Federation A.Ş. tarafından geliştirilmiştir
       </p>
-
-      <div className="flex items-center gap-2 text-[0.7rem] uppercase tracking-widest text-ink-500">
-        <span className="h-px w-8 bg-[color:var(--line-strong)]" />
-        Numune Fırın Futbol Ligi
-        <span className="h-px w-8 bg-[color:var(--line-strong)]" />
-      </div>
     </main>
   );
 }

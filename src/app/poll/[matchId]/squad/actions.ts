@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
+import { runAction } from '@/lib/actions/result';
 
 /**
  * Sahada fiilen olan oyuncularla kesin kadroyu yazar ve maci squad_locked durumuna gecirir.
@@ -16,18 +17,20 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin';
  * cagiran oturumun kendi yetkisiyle calisir.
  */
 export async function lockSquad(matchId: string, playerIds: string[], guestIds: string[]) {
-  await requireAdmin();
-  const supabase = await createServerSupabase();
+  return runAction('Kadro kesinleşti', async () => {
+    await requireAdmin();
+    const supabase = await createServerSupabase();
 
-  const { error } = await supabase.rpc('lock_squad', {
-    p_match_id: matchId,
-    p_player_ids: playerIds,
-    p_guest_ids: guestIds,
+    const { error } = await supabase.rpc('lock_squad', {
+      p_match_id: matchId,
+      p_player_ids: playerIds,
+      p_guest_ids: guestIds,
+    });
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/poll/${matchId}`);
+    revalidatePath(`/poll/${matchId}/squad`);
   });
-  if (error) throw new Error(error.message);
-
-  revalidatePath(`/poll/${matchId}`);
-  revalidatePath(`/poll/${matchId}/squad`);
 }
 
 /**
@@ -35,14 +38,16 @@ export async function lockSquad(matchId: string, playerIds: string[], guestIds: 
  * Yanlis kisiyle kilitlendiginde ya da son anda degisiklik gerektiginde kullanilir.
  */
 export async function unlockSquad(matchId: string) {
-  await requireAdmin();
-  const supabase = await createServerSupabase();
+  return runAction('Kadro geri alındı', async () => {
+    await requireAdmin();
+    const supabase = await createServerSupabase();
 
-  const { error } = await supabase.rpc('unlock_squad', { p_match_id: matchId });
-  if (error) throw new Error(error.message);
+    const { error } = await supabase.rpc('unlock_squad', { p_match_id: matchId });
+    if (error) throw new Error(error.message);
 
-  revalidatePath(`/poll/${matchId}`);
-  revalidatePath(`/poll/${matchId}/squad`);
-  revalidatePath('/matches');
-  revalidatePath('/');
+    revalidatePath(`/poll/${matchId}`);
+    revalidatePath(`/poll/${matchId}/squad`);
+    revalidatePath('/matches');
+    revalidatePath('/');
+  });
 }

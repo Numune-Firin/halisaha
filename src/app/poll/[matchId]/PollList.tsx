@@ -1,8 +1,11 @@
 import type { PollRow } from '@/lib/db/poll';
 import { POSITION_SHORT } from '@/lib/ui/position';
+import { formatStamp } from '@/lib/ui/format';
+import { ToastForm } from '@/components/ToastForm';
+import type { ActionResult } from '@/lib/actions/result';
 
 /** Admin'in bir satiri listeden cikarmasi icin baglanacak sunucu eylemi. */
-export type RemoveEntryAction = (playerId: string, isGuest: boolean) => Promise<void>;
+export type RemoveEntryAction = (playerId: string, isGuest: boolean) => Promise<ActionResult>;
 
 export function PollList({
   rows,
@@ -75,20 +78,25 @@ function Section({
               <span className="w-7 shrink-0 text-right text-sm font-semibold tabular-nums text-ink-500">
                 {r.rank}
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink-100">{r.fullName}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-ink-100">{r.fullName}</span>
+                {r.enteredAt && (
+                  <span className="block text-xs text-ink-500">{formatStamp(r.enteredAt)}</span>
+                )}
+              </span>
               {r.position && <span className="badge badge-muted">{POSITION_SHORT[r.position]}</span>}
               {r.isGuest && !r.isRegular && <span className="badge badge-muted">Aday</span>}
               {r.entryType === 'vip' && <span className="badge badge-vip">VIP</span>}
               {r.entryType === 'priority' && <span className="badge badge-priority">Öncelikli</span>}
               {removeEntry && (
-                <form action={removeEntry.bind(null, r.playerId, r.isGuest)}>
+                <ToastForm action={removeEntry.bind(null, r.playerId, r.isGuest)}>
                   <button
                     className="text-xs text-ink-500 underline underline-offset-2 hover:text-ink-100"
                     title="Listeden çıkar"
                   >
                     Çıkar
                   </button>
-                </form>
+                </ToastForm>
               )}
             </li>
           ))}

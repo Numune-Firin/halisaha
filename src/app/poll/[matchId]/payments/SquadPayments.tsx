@@ -1,0 +1,183 @@
+'use client';
+
+import { useMemo, useState, useTransition } from 'react';
+import { ToastForm } from '@/components/ToastForm';
+import { useToast } from '@/components/Toast';
+import { money } from '@/lib/ui/ledger';
+import { savePaymentAmount, setPayment, setPaymentsBulk } from './actions';
+
+/**
+ * Kadro odemeleri.
+ *
+ * Tek tek isaretlemek on dort kiside yoruyordu; satirlarin yanindaki kutucukla
+ * birden fazla kisi secilip tek hamlede "odedi" (ya da geri alma) yapilabilir.
+ * Tek kisilik islemler eskisi gibi satirin kendi butonlarindan yapilir.
+ */
+
+export interface PaymentRow {
+  id: string;
+  fullName: string;
+  amountPaid: number;
+  isGuest: boolean;
+  isRegular: boolean;
+}
+
+export function SquadPayments({
+  matchId,
+  fee,
+  squad,
+  locked = false,
+}: {
+  matchId: string;
+  fee: number;
+  squad: PaymentRow[];
+  /** Muhasebe kapandiysa yalnizca okunur; once geri acmak gerekir */
+  locked?: boolean;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [pending, startTransition] = useTransition();
+  const { show } = useToast();
+
+  const isPaid = useMemo(
+    () => (row: PaymentRow) => row.amountPaid >= fee && fee > 0,
+    [fee],
+  );
+
+  const unpaidIds = squad.filter((m) => !isPaid(m)).map((m) => m.id);
+  const allSelected = selected.length === squad.length && squad.length > 0;
+
+  function toggle(id: string, checked: boolean) {
+    setSelected((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+  }
+
+  function apply(amount: number) {
+    const ids = selected;
+    startTransition(async () => {
+      const result = await setPaymentsBulk(matchId, ids, amount);
+      show(result.message, result.ok);
+      if (result.ok) setSelected([]);
+    });
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="section-title">Kadro</h2>
+
+      {locked ? (
+        <p className="hint">
+          Muhasebe kapandığı için ödemeler kilitli. Değiştirmek için aşağıdan
+          <strong> Muhasebeyi geri aç</strong>.
+        </p>
+      ) : (
+      <div className="card card-pad flex flex-wrap items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-300">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={(e) => setSelected(e.target.checked ? squad.map((m) => m.id) : [])}
+            className="h-4 w-4 accent-[var(--color-azure-400)]"
+          />
+          Tümünü seç
+        </label>
+
+        <button
+          type="button"
+          onClick={() => setSelected(unpaidIds)}
+          disabled={unpaidIds.length === 0}
+          className="btn btn-ghost btn-sm"
+        >
+          Ödemeyenleri seç ({unpaidIds.length})
+        </button>
+
+        <span className="hint ml-auto">
+          {selected.length > 0 ? `${selected.length} kişi seçili` : 'Kimse seçilmedi'}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => apply(fee)}
+          disabled={selected.length === 0 || pending || fee <= 0}
+          className="btn btn-go btn-sm"
+        >
+          Seçilenler ödedi
+        </button>
+
+        <button
+          type="button"
+          onClick={() => apply(0)}
+          disabled={selected.length === 0 || pending}
+          className="btn btn-ghost btn-sm"
+        >
+          Ödemeyi geri al
+        </button>
+      </div>
+      )}
+
+      <ul className="card divide-line">
+        {squad.map((m) => {
+          const paid = isPaid(m);
+          return (
+            <li key={m.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+              {!locked && (
+                <input
+                  type="checkbox"
+                  checked={selected.includes(m.id)}
+                  onChange={(e) => toggle(m.id, e.target.checked)}
+                  aria-label={`${m.fullName} seç`}
+                  className="h-4 w-4 accent-[var(--color-azure-400)]"
+                />
+              )}
+
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-frost-100">{m.fullName}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  {paid ? (
+                    <span className="badge badge-live">Ödedi</span>
+                  ) : m.amountPaid > 0 ? (
+                    <span className="badge badge-vip">Eksik · {money(m.amountPaid)}</span>
+                  ) : (
+                    <span className="badge badge-muted">Ödemedi</span>
+                  )}
+                  {m.isGuest && !m.isRegular && <span className="badge badge-muted">Aday</span>}
+                </div>
+              </div>
+
+              {locked ? (
+                <span className="text-sm text-ink-300">{money(m.amountPaid)}</span>
+              ) : (
+                <>
+              <ToastForm
+                action={savePaymentAmount.bind(null, matchId, m.id)}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  name="amount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  defaultValue={m.amountPaid || ''}
+                  placeholder={String(fee)}
+                  aria-label={`${m.fullName} ödediği tutar`}
+                  className="input input-sm w-24"
+                />
+                <button className="btn btn-ghost btn-sm">Kaydet</button>
+              </ToastForm>
+
+              {paid ? (
+                <ToastForm action={setPayment.bind(null, matchId, m.id, 0)}>
+                  <button className="btn btn-ghost btn-sm">Geri al</button>
+                </ToastForm>
+              ) : (
+                <ToastForm action={setPayment.bind(null, matchId, m.id, fee)}>
+                  <button className="btn btn-go btn-sm">Ödedi</button>
+                </ToastForm>
+              )}
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}

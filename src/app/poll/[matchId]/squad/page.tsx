@@ -6,6 +6,7 @@ import { getPoll } from '@/lib/db/poll';
 import { formatKickoff } from '@/lib/ui/format';
 import { lockSquad, unlockSquad } from './actions';
 import { SquadPicker, type PickerPerson } from './SquadPicker';
+import { ToastForm } from '@/components/ToastForm';
 
 export default async function SquadPage({
   params,
@@ -38,16 +39,22 @@ export default async function SquadPage({
     .order('full_name');
   if (guestError) throw new Error(guestError.message);
 
+  // Kim ne zaman listeye girdi: ankete girenlerde dolu, elle eklenmemis
+  // kisilerde bos kalir. Kadro secilirken sira burdan gorulur.
+  const enteredAtById = new Map(data.rows.map((r) => [r.playerId, r.enteredAt]));
+
   const people: PickerPerson[] = [
     ...(allMembers ?? []).map((m) => ({
       id: m.id as string,
       fullName: m.full_name as string,
       isGuest: false,
+      enteredAt: enteredAtById.get(m.id as string) || undefined,
     })),
     ...(allGuests ?? []).map((g) => ({
       id: g.id as string,
       fullName: g.full_name as string,
       isGuest: true,
+      enteredAt: enteredAtById.get(g.id as string) || undefined,
     })),
   ];
 
@@ -59,7 +66,7 @@ export default async function SquadPage({
     'use server';
     const playerIds = formData.getAll('player') as string[];
     const guestIds = formData.getAll('guest') as string[];
-    await lockSquad(matchId, playerIds, guestIds);
+    return lockSquad(matchId, playerIds, guestIds);
   }
 
   const isLocked = data.match.status === 'squad_locked';
@@ -79,13 +86,13 @@ export default async function SquadPage({
       </div>
 
       {isLocked && (
-        <form action={unlockSquad.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+        <ToastForm action={unlockSquad.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
           <p className="text-sm text-ink-300">
             Bu maçın kadrosu kesinleşmiş durumda. Geri alırsan anket yeniden açılır ve liste
             değiştirilebilir.
           </p>
           <button className="btn btn-danger btn-sm self-start">Kadroyu geri al</button>
-        </form>
+        </ToastForm>
       )}
 
       <SquadPicker

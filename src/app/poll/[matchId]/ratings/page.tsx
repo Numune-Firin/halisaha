@@ -5,10 +5,20 @@ import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { getSquad } from '@/lib/db/squad';
 import { finalizeDueMvps } from '@/lib/db/ratings';
 import { formatKickoff, formatShort, type MatchStatus } from '@/lib/ui/format';
-import { addComment, deleteComment, ratePlayer, setVotingDeadline } from './actions';
+import {
+  addComment,
+  deleteComment,
+  deleteRating,
+  editComment,
+  ratePlayer,
+  setRatingStars,
+  setVotingDeadline,
+} from './actions';
 import { StarRating } from './StarRating';
+import { ToastForm } from '@/components/ToastForm';
 
 type RatingRow = {
+  id: string;
   rater_id: string;
   ratee_player_id: string | null;
   ratee_guest_id: string | null;
@@ -77,7 +87,7 @@ export default async function RatingsPage({
   // hepsini okur. Burada ayrica filtre koymaya gerek yok.
   const { data: ratingRows, error: ratingError } = await supabase
     .from('match_ratings')
-    .select('rater_id, ratee_player_id, ratee_guest_id, stars, profiles!match_ratings_rater_id_fkey(full_name)')
+    .select('id, rater_id, ratee_player_id, ratee_guest_id, stars, profiles!match_ratings_rater_id_fkey(full_name)')
     .eq('match_id', matchId);
   if (ratingError) throw new Error(ratingError.message);
 
@@ -143,7 +153,7 @@ export default async function RatingsPage({
       )}
 
       {isAdmin && isPlayed && (
-        <form
+        <ToastForm
           action={setVotingDeadline.bind(null, matchId)}
           className="card card-pad flex flex-wrap items-end gap-3"
         >
@@ -164,7 +174,7 @@ export default async function RatingsPage({
             </p>
           </div>
           <button className="btn btn-ghost btn-sm">Kaydet</button>
-        </form>
+        </ToastForm>
       )}
 
       {!isPlayed ? (
@@ -223,6 +233,14 @@ export default async function RatingsPage({
 
                   {isSelf && !isAdmin ? (
                     <span className="text-xs text-ink-500">Kendine oy veremezsin</span>
+                  ) : !isAdmin && myStars.has(key) ? (
+                    // Oy verildi: kesin. Degistirmek icin yoneticinin silmesi gerekir.
+                    <span className="flex items-center gap-2">
+                      <span className="text-amber-400" title="Verdiğin oy">
+                        {'★'.repeat(myStars.get(key) as number)}
+                      </span>
+                      <span className="text-xs text-ink-500">Oyun kayıtlı</span>
+                    </span>
                   ) : canVote ? (
                     <StarRating
                       action={ratePlayer.bind(null, matchId, {
@@ -239,8 +257,9 @@ export default async function RatingsPage({
           </ul>
 
           <p className="hint">
-            Verdiğin oyları yalnızca sen ve yönetici görür. İstediğin zaman değiştirebilirsin,
-            son verdiğin yıldız geçerli olur.
+            Verdiğin oyları yalnızca sen ve yönetici görür. <strong>Oy bir kez verilir</strong>,
+            sonradan değiştirilemez. Yanlış verdiysen yöneticiye söyle: oyunu silerse yeniden
+            verebilirsin.
           </p>
         </section>
       )}
@@ -266,13 +285,27 @@ export default async function RatingsPage({
                       <ul className="mt-2 flex flex-col gap-1">
                         {given.map((r) => (
                           <li
-                            key={`${r.rater_id}-${key}`}
-                            className="flex items-center justify-between gap-3 text-sm"
+                            key={r.id}
+                            className="flex flex-wrap items-center gap-3 text-sm"
                           >
-                            <span className="truncate text-ink-300">
+                            <span className="min-w-0 flex-1 truncate text-ink-300">
                               {r.profiles?.full_name || 'İsimsiz oyuncu'}
                             </span>
-                            <span className="text-amber-400">{'★'.repeat(r.stars)}</span>
+
+                            <StarRating
+                              action={setRatingStars.bind(null, matchId, r.id)}
+                              value={r.stars}
+                              label={`${r.profiles?.full_name ?? 'Oyuncu'} → ${m.fullName}`}
+                            />
+
+                            <ToastForm action={deleteRating.bind(null, matchId, r.id)}>
+                              <button
+                                className="text-xs text-ink-500 underline"
+                                title="Oyu siler; o oyuncu yeniden oy verebilir"
+                              >
+                                Sil
+                              </button>
+                            </ToastForm>
                           </li>
                         ))}
                       </ul>
@@ -298,7 +331,7 @@ export default async function RatingsPage({
         )}
 
         {canComment && (
-        <form action={addComment.bind(null, matchId)} className="card card-pad flex flex-col gap-3">
+        <ToastForm action={addComment.bind(null, matchId)} className="card card-pad flex flex-col gap-3">
           <div className="field">
             <label className="label" htmlFor="body">
               Maç hakkında yaz
@@ -315,7 +348,7 @@ export default async function RatingsPage({
             <p className="hint">Yorumu gruptaki herkes görür, adın yazar.</p>
           </div>
           <button className="btn btn-primary btn-sm self-start">Gönder</button>
-        </form>
+        </ToastForm>
         )}
 
         {comments.length === 0 ? (
@@ -324,7 +357,8 @@ export default async function RatingsPage({
           <ul className="card divide-line">
             {comments.map((c) => {
               const author = c.profiles as unknown as { full_name: string } | null;
-              const canDelete = isAdmin || c.author_id === profile.id;
+              // Yorumu yalnizca yonetici siler ya da duzeltir; yazan kendi
+              // yorumunu kaldiramaz.
               return (
                 <li key={c.id as string} className="flex flex-col gap-1 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -336,10 +370,37 @@ export default async function RatingsPage({
                     </span>
                   </div>
                   <p className="whitespace-pre-line text-sm text-ink-300">{c.body as string}</p>
-                  {canDelete && (
-                    <form action={deleteComment.bind(null, matchId, c.id as string)}>
-                      <button className="text-xs text-ink-500 underline">Sil</button>
-                    </form>
+                  {isAdmin && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <details>
+                        <summary className="cursor-pointer text-xs text-azure-400">
+                          Düzenle
+                        </summary>
+                        <ToastForm
+                          action={editComment.bind(null, matchId, c.id as string)}
+                          className="mt-2 flex flex-col gap-2"
+                        >
+                          <textarea
+                            name="body"
+                            rows={3}
+                            maxLength={1000}
+                            defaultValue={c.body as string}
+                            aria-label="Yorum metni"
+                            className="input"
+                          />
+                          <button className="btn btn-ghost btn-sm self-start">Kaydet</button>
+                        </ToastForm>
+                      </details>
+
+                      <ToastForm action={deleteComment.bind(null, matchId, c.id as string)}>
+                        <button
+                          className="text-xs text-ink-500 underline"
+                          title="Siler; yazan kişi yeni yorum yazabilir"
+                        >
+                          Sil
+                        </button>
+                      </ToastForm>
+                    </div>
                   )}
                 </li>
               );

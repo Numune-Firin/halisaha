@@ -1,8 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { ToastForm } from '@/components/ToastForm';
+import { formatStamp } from '@/lib/ui/format';
+import type { ActionResult } from '@/lib/actions/result';
 
-export type PickerPerson = { id: string; fullName: string; isGuest: boolean };
+export type PickerPerson = {
+  id: string;
+  fullName: string;
+  isGuest: boolean;
+  /** Ankete girdigi an; elle eklenen ya da hic girmemis kisilerde bos */
+  enteredAt?: string;
+};
 
 /**
  * Kadro secimi. Kontenjan dolmadan "kesinleştir" butonu acilmaz; ayni kural
@@ -18,7 +27,7 @@ export function SquadPicker({
   people: PickerPerson[];
   preselectedIds: string[];
   squadSize: number;
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<ActionResult>;
 }) {
   const [selected, setSelected] = useState<string[]>(preselectedIds);
 
@@ -30,7 +39,7 @@ export function SquadPicker({
   const isReady = count === squadSize;
 
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <ToastForm action={action} className="flex flex-col gap-3">
       <ul className="card divide-line">
         {people.map((p) => (
           <li key={p.id}>
@@ -43,8 +52,15 @@ export function SquadPicker({
                 onChange={(e) => toggle(p.id, e.target.checked)}
                 className="h-4 w-4 accent-[var(--color-azure-400)]"
               />
-              <span className="flex-1 text-sm text-ink-100">
-                {p.fullName || 'İsimsiz oyuncu'}
+              <span className="flex-1">
+                <span className="block text-sm text-ink-100">
+                  {p.fullName || 'İsimsiz oyuncu'}
+                </span>
+                {p.enteredAt && (
+                  <span className="block text-xs text-ink-500">
+                    Listeye giriş: {formatStamp(p.enteredAt)}
+                  </span>
+                )}
               </span>
               {p.isGuest && <span className="badge badge-muted">Aday</span>}
             </label>
@@ -70,6 +86,6 @@ export function SquadPicker({
             : `${count - squadSize} kişi fazla seçili.`}
         </p>
       )}
-    </form>
+    </ToastForm>
   );
 }

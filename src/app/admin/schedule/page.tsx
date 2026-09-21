@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
-import { formatKickoff } from '@/lib/ui/format';
+import { formatDay, formatKickoff } from '@/lib/ui/format';
 import { WEEKDAY_LABELS, WEEKDAY_OPTIONS, nextOccurrences } from '@/lib/ui/schedule';
+import { TimeFields } from './TimeFields';
+import { DateFields } from './DateFields';
 import {
   createSchedule,
   deleteSchedule,
@@ -12,6 +14,7 @@ import {
   setScheduleActive,
   updateSchedule,
 } from './actions';
+import { ToastForm } from '@/components/ToastForm';
 
 type ScheduleRow = {
   id: string;
@@ -24,6 +27,8 @@ type ScheduleRow = {
   late_withdrawal_penalty_seconds: number;
   poll_weekday: number;
   poll_open_time: string;
+  starts_on: string | null;
+  ends_on: string | null;
   is_active: boolean;
 };
 
@@ -74,7 +79,7 @@ export default async function SchedulePage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="section-title">Yeni takvim tanımla</h2>
-        <form action={createSchedule} className="card card-pad flex flex-col gap-4">
+        <ToastForm action={createSchedule} className="card card-pad flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">
               <label className="label" htmlFor="pollWeekday">
@@ -90,20 +95,12 @@ export default async function SchedulePage() {
               <p className="hint">Girişler her hafta bu gün açılır.</p>
             </div>
 
-            <div className="field">
-              <label className="label" htmlFor="pollOpenTime">
-                Anket saati
-              </label>
-              <input
-                id="pollOpenTime"
-                name="pollOpenTime"
-                type="time"
-                required
-                defaultValue="12:00"
-                className="input"
-              />
-              <p className="hint">Türkiye saati. Liste tam bu anda açılır.</p>
-            </div>
+            <TimeFields
+              name="pollOpenTime"
+              label="Anket saati"
+              defaultValue="12:00"
+              hint="Türkiye saati, 24 saatlik. Liste tam bu anda açılır."
+            />
 
             <div className="field">
               <label className="label" htmlFor="weekday">
@@ -119,20 +116,12 @@ export default async function SchedulePage() {
               <p className="hint">Maç her hafta bu gün oynanır.</p>
             </div>
 
-            <div className="field">
-              <label className="label" htmlFor="startTime">
-                Maç saati
-              </label>
-              <input
-                id="startTime"
-                name="startTime"
-                type="time"
-                required
-                defaultValue="22:15"
-                className="input"
-              />
-              <p className="hint">Türkiye saati.</p>
-            </div>
+            <TimeFields
+              name="startTime"
+              label="Maç saati"
+              defaultValue="22:15"
+              hint="Türkiye saati, 24 saatlik."
+            />
           </div>
 
           <div className="field">
@@ -147,6 +136,19 @@ export default async function SchedulePage() {
               className="input"
             />
             <p className="hint">Her hafta açılan maça bu saha yazılır.</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <DateFields
+              name="startsOn"
+              label="Başlangıç tarihi"
+              hint="Boş bırakırsan hemen başlar."
+            />
+            <DateFields
+              name="endsOn"
+              label="Bitiş tarihi"
+              hint="Boş bırakırsan sen durdurana kadar her hafta devam eder."
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -214,7 +216,7 @@ export default async function SchedulePage() {
           </div>
 
           <button className="btn btn-primary btn-block">Takvimi oluştur</button>
-        </form>
+        </ToastForm>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -252,17 +254,25 @@ export default async function SchedulePage() {
                           Anket her {WEEKDAY_LABELS[schedule.poll_weekday]}{' '}
                           {schedule.poll_open_time.slice(0, 5)} açılır
                         </p>
+                        <p className="mt-0.5 text-xs text-ink-500">
+                          {schedule.starts_on
+                            ? `${formatDay(schedule.starts_on)} tarihinden`
+                            : 'Başlangıç sınırı yok,'}{' '}
+                          {schedule.ends_on
+                            ? `${formatDay(schedule.ends_on)} tarihine kadar`
+                            : 'bitis tarihi yok'}
+                        </p>
                       </div>
 
                       <div className="flex gap-2">
                         {schedule.is_active ? (
-                          <form action={setScheduleActive.bind(null, schedule.id, false)}>
+                          <ToastForm action={setScheduleActive.bind(null, schedule.id, false)}>
                             <button className="btn btn-ghost btn-sm">Duraklat</button>
-                          </form>
+                          </ToastForm>
                         ) : (
-                          <form action={setScheduleActive.bind(null, schedule.id, true)}>
+                          <ToastForm action={setScheduleActive.bind(null, schedule.id, true)}>
                             <button className="btn btn-go btn-sm">Devam ettir</button>
-                          </form>
+                          </ToastForm>
                         )}
                       </div>
                     </div>
@@ -281,7 +291,7 @@ export default async function SchedulePage() {
                       <summary className="cursor-pointer text-sm font-medium text-azure-400">
                         Düzenle
                       </summary>
-                      <form
+                      <ToastForm
                         action={updateSchedule.bind(null, schedule.id)}
                         className="mt-3 flex flex-col gap-3"
                       >
@@ -300,16 +310,11 @@ export default async function SchedulePage() {
                               ))}
                             </select>
                           </div>
-                          <div className="field">
-                            <label className="label">Anket saati</label>
-                            <input
-                              name="pollOpenTime"
-                              type="time"
-                              required
-                              defaultValue={schedule.poll_open_time.slice(0, 5)}
-                              className="input"
-                            />
-                          </div>
+                          <TimeFields
+                            name="pollOpenTime"
+                            label="Anket saati"
+                            defaultValue={schedule.poll_open_time.slice(0, 5)}
+                          />
                           <div className="field">
                             <label className="label">Maç günü</label>
                             <select
@@ -324,16 +329,11 @@ export default async function SchedulePage() {
                               ))}
                             </select>
                           </div>
-                          <div className="field">
-                            <label className="label">Maç saati</label>
-                            <input
-                              name="startTime"
-                              type="time"
-                              required
-                              defaultValue={schedule.start_time.slice(0, 5)}
-                              className="input"
-                            />
-                          </div>
+                          <TimeFields
+                            name="startTime"
+                            label="Maç saati"
+                            defaultValue={schedule.start_time.slice(0, 5)}
+                          />
                         </div>
 
                         <div className="field">
@@ -343,6 +343,19 @@ export default async function SchedulePage() {
                             type="text"
                             defaultValue={schedule.venue}
                             className="input"
+                          />
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <DateFields
+                            name="startsOn"
+                            label="Başlangıç tarihi"
+                            defaultValue={schedule.starts_on}
+                          />
+                          <DateFields
+                            name="endsOn"
+                            label="Bitiş tarihi"
+                            defaultValue={schedule.ends_on}
                           />
                         </div>
 
@@ -397,9 +410,9 @@ export default async function SchedulePage() {
                         </p>
 
                         <button className="btn btn-ghost btn-sm self-start">Kaydet</button>
-                      </form>
+                      </ToastForm>
 
-                      <form
+                      <ToastForm
                         action={deleteSchedule.bind(null, schedule.id)}
                         className="mt-3 border-t border-[color:var(--line)] pt-3"
                       >
@@ -407,16 +420,16 @@ export default async function SchedulePage() {
                         <p className="hint mt-1">
                           Açılmış maçlar silinmez, yalnızca yenileri açılmaz.
                         </p>
-                      </form>
+                      </ToastForm>
                     </details>
                   </li>
                 );
               })}
             </ul>
 
-            <form action={generateScheduledMatches}>
+            <ToastForm action={generateScheduledMatches}>
               <button className="btn btn-ghost btn-block">Vakti gelenleri şimdi oluştur</button>
-            </form>
+            </ToastForm>
           </>
         )}
       </section>

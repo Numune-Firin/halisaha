@@ -78,7 +78,7 @@ export function AppChrome({
   }, [open]);
 
   return (
-    <div className="min-h-dvh lg:pl-64">
+    <div className="flex min-h-dvh flex-col lg:pl-64">
       {open && (
         <div
           aria-hidden
@@ -95,10 +95,10 @@ export function AppChrome({
         <div className="flex items-center justify-between gap-2 px-4 py-4">
           <Link href="/" className="min-w-0">
             <Image
-              src="/sponsor.jpg"
+              src="/firin.jpg"
               alt="Numune Fırın Futbol Ligi"
-              width={320}
-              height={114}
+              width={1794}
+              height={592}
               priority
               className="h-10 w-auto rounded-md"
             />
@@ -183,7 +183,7 @@ export function AppChrome({
         <span className="truncate text-sm font-semibold text-frost-100">{title}</span>
       </header>
 
-      <main className="page">
+      <main className="page flex-1">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             {canGoBack && (
@@ -203,11 +203,13 @@ export function AppChrome({
           {action}
         </div>
         {children}
-
-        <footer className="mt-6 border-t border-[color:var(--line)] pt-4 text-center text-xs text-ink-500">
-          Numune Fırın Football Federation A.Ş. tarafından geliştirilmiştir
-        </footer>
       </main>
+
+      {/* Altbilgi main'in disinda: sayfa kisa oldugunda ortada asili kalmasin,
+          uzun oldugunda da icerigin ardindan gelsin */}
+      <footer className="page-footer">
+        Numune Fırın Football Federation A.Ş. tarafından geliştirilmiştir
+      </footer>
     </div>
   );
 }

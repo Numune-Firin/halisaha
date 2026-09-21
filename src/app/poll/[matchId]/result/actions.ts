@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
+import { runAction } from '@/lib/actions/result';
 
 /** Skor ve takim degisikligi puan durumunu da etkiler. */
 function revalidateResult(matchId: string) {
@@ -19,27 +20,29 @@ function revalidateResult(matchId: string) {
  * gonderilmez. Takim adlari buradan degismez, kaynagi "Takimlar" sayfasidir.
  */
 export async function saveTeams(matchId: string, formData: FormData) {
-  await requireAdmin();
+  return runAction('Takımlar kaydedildi', async () => {
+    await requireAdmin();
 
-  const blackIds: string[] = [];
-  const whiteIds: string[] = [];
+    const blackIds: string[] = [];
+    const whiteIds: string[] = [];
 
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith('team:')) continue;
-    const squadRowId = key.slice('team:'.length);
-    if (value === 'black') blackIds.push(squadRowId);
-    else if (value === 'white') whiteIds.push(squadRowId);
-  }
+    for (const [key, value] of formData.entries()) {
+      if (!key.startsWith('team:')) continue;
+      const squadRowId = key.slice('team:'.length);
+      if (value === 'black') blackIds.push(squadRowId);
+      else if (value === 'white') whiteIds.push(squadRowId);
+    }
 
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.rpc('set_squad_teams', {
-    p_match_id: matchId,
-    p_black_ids: blackIds,
-    p_white_ids: whiteIds,
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.rpc('set_squad_teams', {
+      p_match_id: matchId,
+      p_black_ids: blackIds,
+      p_white_ids: whiteIds,
+    });
+    if (error) throw new Error(error.message);
+
+    revalidateResult(matchId);
   });
-  if (error) throw new Error(error.message);
-
-  revalidateResult(matchId);
 }
 
 /**
@@ -48,56 +51,62 @@ export async function saveTeams(matchId: string, formData: FormData) {
  * dugmeyle acilmis anketi de guncelleyebilir. Oynanmis maclara dokunulmaz.
  */
 export async function refreshTeamNames(matchId: string) {
-  await requireAdmin();
+  return runAction('Takım adları yenilendi', async () => {
+    await requireAdmin();
 
-  const supabase = await createServerSupabase();
-  const { data: teams, error: teamError } = await supabase
-    .from('teams')
-    .select('name, active_slot')
-    .not('active_slot', 'is', null);
-  if (teamError) throw new Error(teamError.message);
+    const supabase = await createServerSupabase();
+    const { data: teams, error: teamError } = await supabase
+      .from('teams')
+      .select('name, active_slot')
+      .not('active_slot', 'is', null);
+    if (teamError) throw new Error(teamError.message);
 
-  const slot = (value: number) =>
-    (teams ?? []).find((t) => t.active_slot === value)?.name as string | undefined;
+    const slot = (value: number) =>
+      (teams ?? []).find((t) => t.active_slot === value)?.name as string | undefined;
 
-  const { error } = await supabase.rpc('set_team_names', {
-    p_match_id: matchId,
-    p_black_name: slot(1) ?? 'Siyah',
-    p_white_name: slot(2) ?? 'Beyaz',
+    const { error } = await supabase.rpc('set_team_names', {
+      p_match_id: matchId,
+      p_black_name: slot(1) ?? 'Siyah',
+      p_white_name: slot(2) ?? 'Beyaz',
+    });
+    if (error) throw new Error(error.message);
+
+    revalidateResult(matchId);
   });
-  if (error) throw new Error(error.message);
-
-  revalidateResult(matchId);
 }
 
 /** Skoru yazar ve maci "oynandi" durumuna gecirir. */
 export async function saveResult(matchId: string, formData: FormData) {
-  await requireAdmin();
+  return runAction('Skor kaydedildi', async () => {
+    await requireAdmin();
 
-  const blackScore = Number(formData.get('blackScore'));
-  const whiteScore = Number(formData.get('whiteScore'));
-  if (!Number.isInteger(blackScore) || !Number.isInteger(whiteScore)) {
-    throw new Error('Skor tam sayı olmalı');
-  }
+    const blackScore = Number(formData.get('blackScore'));
+    const whiteScore = Number(formData.get('whiteScore'));
+    if (!Number.isInteger(blackScore) || !Number.isInteger(whiteScore)) {
+      throw new Error('Skor tam sayı olmalı');
+    }
 
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.rpc('set_match_result', {
-    p_match_id: matchId,
-    p_black_score: blackScore,
-    p_white_score: whiteScore,
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.rpc('set_match_result', {
+      p_match_id: matchId,
+      p_black_score: blackScore,
+      p_white_score: whiteScore,
+    });
+    if (error) throw new Error(error.message);
+
+    revalidateResult(matchId);
   });
-  if (error) throw new Error(error.message);
-
-  revalidateResult(matchId);
 }
 
 /** Yanlis girilen skoru siler; mac kadro kesin durumuna doner. */
 export async function clearResult(matchId: string) {
-  await requireAdmin();
+  return runAction('Skor silindi', async () => {
+    await requireAdmin();
 
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.rpc('clear_match_result', { p_match_id: matchId });
-  if (error) throw new Error(error.message);
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.rpc('clear_match_result', { p_match_id: matchId });
+    if (error) throw new Error(error.message);
 
-  revalidateResult(matchId);
+    revalidateResult(matchId);
+  });
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
+import { runAction } from '@/lib/actions/result';
 
 /**
  * Ceza ve odul ayni tabloda, tek alanla tutulur: saniye. Arti saniye giris
@@ -10,27 +11,29 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin';
  * kaldigi surece oyuncunun girdigi ilk ankette tuketilir.
  */
 export async function createAdjustment(formData: FormData) {
-  await requireAdmin();
+  return runAction('Ceza/ödül eklendi', async () => {
+    await requireAdmin();
 
-  const playerId = String(formData.get('playerId') ?? '');
-  const kind = String(formData.get('kind') ?? 'penalty');
-  const seconds = Number(formData.get('seconds'));
-  const reason = String(formData.get('reason') ?? '').trim();
+    const playerId = String(formData.get('playerId') ?? '');
+    const kind = String(formData.get('kind') ?? 'penalty');
+    const seconds = Number(formData.get('seconds'));
+    const reason = String(formData.get('reason') ?? '').trim();
 
-  if (!playerId) throw new Error('Oyuncu seç');
-  if (!Number.isInteger(seconds) || seconds <= 0) {
-    throw new Error('Saniye sıfırdan büyük bir tam sayı olmalı');
-  }
+    if (!playerId) throw new Error('Oyuncu seç');
+    if (!Number.isInteger(seconds) || seconds <= 0) {
+      throw new Error('Saniye sıfırdan büyük bir tam sayı olmalı');
+    }
 
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.from('adjustments').insert({
-    player_id: playerId,
-    seconds: kind === 'reward' ? -seconds : seconds,
-    reason,
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.from('adjustments').insert({
+      player_id: playerId,
+      seconds: kind === 'reward' ? -seconds : seconds,
+      reason,
+    });
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/admin/adjustments');
   });
-  if (error) throw new Error(error.message);
-
-  revalidatePath('/admin/adjustments');
 }
 
 /**
@@ -38,11 +41,13 @@ export async function createAdjustment(formData: FormData) {
  * anketteki siralamayi degistirmez, yalnizca listeden kaldirir.
  */
 export async function deleteAdjustment(adjustmentId: string) {
-  await requireAdmin();
+  return runAction('Kayıt silindi', async () => {
+    await requireAdmin();
 
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.from('adjustments').delete().eq('id', adjustmentId);
-  if (error) throw new Error(error.message);
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.from('adjustments').delete().eq('id', adjustmentId);
+    if (error) throw new Error(error.message);
 
-  revalidatePath('/admin/adjustments');
+    revalidatePath('/admin/adjustments');
+  });
 }

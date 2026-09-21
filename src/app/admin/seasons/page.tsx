@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { formatDay } from '@/lib/ui/format';
 import { activateSeason, closeSeason, createSeason, updateSeason } from './actions';
+import { ToastForm } from '@/components/ToastForm';
 
 type SeasonRow = {
   id: string;
@@ -44,7 +45,7 @@ export default async function SeasonsPage() {
     >
       <section className="flex flex-col gap-3">
         <h2 className="section-title">Yeni sezon tanımla</h2>
-        <form action={createSeason} className="card card-pad flex flex-col gap-4">
+        <ToastForm action={createSeason} className="card card-pad flex flex-col gap-4">
           <div className="field">
             <label className="label" htmlFor="name">
               Sezon adı
@@ -103,7 +104,7 @@ export default async function SeasonsPage() {
           </label>
 
           <button className="btn btn-primary btn-block">Sezonu oluştur</button>
-        </form>
+        </ToastForm>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -138,13 +139,13 @@ export default async function SeasonsPage() {
 
                   <div className="flex gap-2">
                     {season.is_active ? (
-                      <form action={closeSeason.bind(null, season.id)}>
+                      <ToastForm action={closeSeason.bind(null, season.id)}>
                         <button className="btn btn-ghost btn-sm">Sezonu kapat</button>
-                      </form>
+                      </ToastForm>
                     ) : (
-                      <form action={activateSeason.bind(null, season.id)}>
+                      <ToastForm action={activateSeason.bind(null, season.id)}>
                         <button className="btn btn-go btn-sm">Aktif yap</button>
-                      </form>
+                      </ToastForm>
                     )}
                   </div>
                 </div>
@@ -153,7 +154,7 @@ export default async function SeasonsPage() {
                   <summary className="cursor-pointer text-sm font-medium text-azure-400">
                     Düzenle
                   </summary>
-                  <form
+                  <ToastForm
                     action={updateSeason.bind(null, season.id)}
                     className="mt-3 flex flex-col gap-3"
                   >
@@ -189,7 +190,7 @@ export default async function SeasonsPage() {
                       </div>
                     </div>
                     <button className="btn btn-ghost btn-sm self-start">Kaydet</button>
-                  </form>
+                  </ToastForm>
                 </details>
               </li>
             ))}
