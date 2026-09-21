@@ -129,7 +129,9 @@ export default async function PlayersPage() {
                   <div className="mt-0.5 flex flex-wrap gap-1.5">
                     {m.role === 'admin' && <span className="badge badge-vip">Yönetici</span>}
                     {m.status === 'inactive' && <span className="badge badge-muted">Pasif</span>}
-                    {TIER_BADGES[m.tier as PlayerTier] && (
+                    {/* Kimin sabit ya da oncelikli oldugu yonetim bilgisidir;
+                        oyuncular birbirinin katmanini gormez */}
+                    {isAdmin && TIER_BADGES[m.tier as PlayerTier] && (
                       <span className={TIER_BADGES[m.tier as PlayerTier] as string}>
                         {TIER_LABELS[m.tier as PlayerTier]}
                       </span>
@@ -266,7 +268,7 @@ export default async function PlayersPage() {
                           Aday · {playedCount}/{promotionThreshold} maç
                         </span>
                       )}
-                      {TIER_BADGES[g.tier as PlayerTier] && (
+                      {isAdmin && TIER_BADGES[g.tier as PlayerTier] && (
                         <span className={TIER_BADGES[g.tier as PlayerTier] as string}>
                           {TIER_LABELS[g.tier as PlayerTier]}
                         </span>
