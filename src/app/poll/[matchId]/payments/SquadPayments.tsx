@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { ToastForm } from '@/components/ToastForm';
 import { useToast } from '@/components/Toast';
 import { money } from '@/lib/ui/ledger';
+import { formatStamp } from '@/lib/ui/format';
 import { savePaymentAmount, setPayment, setPaymentsBulk } from './actions';
 
 /**
@@ -18,6 +19,8 @@ export interface PaymentRow {
   id: string;
   fullName: string;
   amountPaid: number;
+  /** Listeye girdigi an; ankete girmeden kadroya yazilanlarda bos */
+  enteredAt: string | null;
   isGuest: boolean;
   isRegular: boolean;
 }
@@ -130,6 +133,9 @@ export function SquadPayments({
 
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-frost-100">{m.fullName}</div>
+                {m.enteredAt && (
+                  <div className="text-xs text-ink-500">{formatStamp(m.enteredAt)}</div>
+                )}
                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                   {paid ? (
                     <span className="badge badge-live">Ödedi</span>

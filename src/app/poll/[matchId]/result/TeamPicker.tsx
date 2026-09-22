@@ -5,6 +5,7 @@ import type { SquadMember } from '@/lib/db/squad';
 import type { Team } from '@/lib/standings/table';
 import { POSITION_SHORT } from '@/lib/ui/position';
 import { balanceTeams } from '@/lib/poll/balance';
+import { formatStamp } from '@/lib/ui/format';
 import { ToastForm } from '@/components/ToastForm';
 import type { ActionResult } from '@/lib/actions/result';
 
@@ -111,7 +112,12 @@ export function TeamPicker({
             <ul className="divide-line">
               {pool.map((m) => (
                 <li key={m.id} className="flex items-center gap-2 px-4 py-2.5">
-                  <span className="min-w-0 flex-1 truncate text-sm text-ink-100">{m.fullName}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ink-100">{m.fullName}</span>
+                    {m.enteredAt && (
+                      <span className="block text-xs text-ink-500">{formatStamp(m.enteredAt)}</span>
+                    )}
+                  </span>
                   {m.rating !== null && (
                     <span className="text-xs text-amber-400">★ {m.rating.toFixed(1)}</span>
                   )}
@@ -158,8 +164,13 @@ export function TeamPicker({
                   <ul className="divide-line">
                     {members.map((m) => (
                       <li key={m.id} className="flex items-center gap-2 px-4 py-2.5">
-                        <span className="min-w-0 flex-1 truncate text-sm text-ink-100">
-                          {m.fullName}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm text-ink-100">{m.fullName}</span>
+                          {m.enteredAt && (
+                            <span className="block text-xs text-ink-500">
+                              {formatStamp(m.enteredAt)}
+                            </span>
+                          )}
                         </span>
                         {m.rating !== null && (
                           <span className="text-xs text-amber-400">★ {m.rating.toFixed(1)}</span>

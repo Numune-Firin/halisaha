@@ -322,6 +322,7 @@ export default async function PaymentsPage({
               amountPaid: m.amountPaid,
               isGuest: m.isGuest,
               isRegular: m.isRegular,
+              enteredAt: m.enteredAt,
             }))}
           />
 

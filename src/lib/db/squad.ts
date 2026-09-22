@@ -25,6 +25,12 @@ export interface SquadMember {
    * gelen ortalama. Hic oy almamis oyuncuda null olur.
    */
   rating: number | null;
+  /**
+   * Listeye girdigi an. Ankete girenlerde giris saati, yonetici elle
+   * ekledigindeyse eklendigi an. Kadroya sonradan, ankete hic girmeden
+   * yazilan kisilerde null kalir.
+   */
+  enteredAt: string | null;
 }
 
 /** Bir macin kesinlesmis kadrosu, isimleriyle ve takimlariyla. */
@@ -39,6 +45,19 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
 
   // Takim dengelemesi yildiza bakar; elle yazilan deger ortalamayi ezer
   const summary = await getRatingSummary();
+
+  // Listeye giris ani anket satirinda durur; kadro satirinda degil
+  const { data: entryRows } = await supabase
+    .from('match_entries')
+    .select('player_id, guest_id, entered_at')
+    .eq('match_id', matchId)
+    .is('withdrawn_at', null);
+  const enteredAtById = new Map(
+    (entryRows ?? []).map((e) => [
+      ((e.player_id ?? e.guest_id) as string) ?? '',
+      e.entered_at as string,
+    ]),
+  );
 
   return (data ?? [])
     .map((r) => {
@@ -67,6 +86,7 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
         team: (r.team as Team | null) ?? null,
         amountPaid: Number(r.amount_paid ?? 0),
         rating: override ?? summary.get(participantId)?.average ?? null,
+        enteredAt: enteredAtById.get(participantId) ?? null,
       };
     })
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'tr'));
