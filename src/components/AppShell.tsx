@@ -22,7 +22,12 @@ function adminGroup(pendingCount: number): NavGroup {
     {
       href: '/admin',
       label: 'Yönetim paneli',
-      description: 'Üye onayları ve yeni anket',
+      description: 'Yeni anket ve son maçlar',
+    },
+    {
+      href: '/admin/members',
+      label: 'Üyeler ve davetler',
+      description: 'Onay bekleyenler ve davetler',
       badge: pendingCount,
     },
     { href: '/admin/teams', label: 'Takımlar', description: 'Takım tanımı ve sahadaki ikisi' },
