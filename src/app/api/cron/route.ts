@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  cleanupOldProposals,
   ensureScheduledMatches,
   finalizeMvps,
   notifyUnresolvedMatches,
@@ -14,6 +15,7 @@ import {
  *   - oylama suresi dolan maclarin MVP'sini belirlemek
  *   - maktan 24 saat sonra odemesi eksik olanlara hatirlatma yollamak
  *   - sonucu girilmemis (askida) haftalar icin yoneticileri uyarmak
+ *   - gecmis haftalarin kadro onerilerini temizlemek
  *
  * Disaridan tetiklenir, o yuzden tek koruma paylasilan bir sirdir:
  * CRON_SECRET. Vercel Cron bu degiskeni gorunce istegi kendiliginden
@@ -41,6 +43,7 @@ async function run() {
     mvp: finalizeMvps,
     reminders: sendDuePaymentReminders,
     unresolved: notifyUnresolvedMatches,
+    proposals: cleanupOldProposals,
   } as const;
 
   const result: Record<string, number | string> = {};

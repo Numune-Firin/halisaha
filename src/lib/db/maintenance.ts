@@ -96,6 +96,20 @@ export async function ensureScheduledMatches(): Promise<number> {
   return (data as number | null) ?? 0;
 }
 
+/**
+ * Gecmis haftalarin kadro onerilerini siler.
+ *
+ * Oneri yalnizca mac oncesi anlamlidir; mac sonuclaninca tetikleyici zaten
+ * temizler. Bu is, durumu elle degistirilmis ya da hic sonuclandirilmamis
+ * haftalarda kalan artiklari toplar.
+ */
+export async function cleanupOldProposals(): Promise<number> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase.rpc('cleanup_old_proposals');
+  if (error) throw new Error(error.message);
+  return (data as number | null) ?? 0;
+}
+
 /** Oylama suresi dolmus maclarin MVP'sini belirler. */
 export async function finalizeMvps(): Promise<number> {
   const supabase = createServiceSupabase();
