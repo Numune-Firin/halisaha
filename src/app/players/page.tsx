@@ -3,21 +3,16 @@ import { AppShell } from '@/components/AppShell';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { POSITION_LABELS, POSITION_OPTIONS } from '@/lib/ui/position';
 import type { Position } from '@/lib/poll/types';
-import { PositionSelect } from './PositionSelect';
 import { getRatingSummary, type RatingSummary } from '@/lib/db/ratings';
 import {
   createPlayer,
   setGuestActive,
-  setGuestPosition,
   setGuestRegular,
   setMemberRole,
-  setOverrideRating,
-  setPlayerPosition,
-  setPlayerTier,
+  savePlayerSettings,
   setProposalRight,
 } from './actions';
-import { RatingCell } from './RatingCell';
-import { TierSelect } from './TierSelect';
+import { PlayerSettings } from './PlayerSettings';
 import { TIER_BADGES, TIER_LABELS, type PlayerTier } from '@/lib/ui/tier';
 import { ToastForm } from '@/components/ToastForm';
 
@@ -122,7 +117,7 @@ export default async function PlayersPage() {
             const name = (m.full_name as string) || 'İsimsiz oyuncu';
 
             return (
-              <li key={id} className="flex items-center gap-3 px-4 py-2.5">
+              <li key={id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-frost-100">
                     {name}
@@ -168,30 +163,15 @@ export default async function PlayersPage() {
                   </div>
                 </div>
 
-                {isAdmin && (
-                  <TierSelect
-                    action={setPlayerTier.bind(null, 'member', id)}
-                    value={m.tier as string}
-                    seconds={Number(m.auto_entry_seconds ?? 0)}
+                {isAdmin ? (
+                  <PlayerSettings
+                    action={savePlayerSettings.bind(null, 'member', id)}
                     label={name}
-                  />
-                )}
-
-                {isAdmin && (
-                  <RatingCell
-                    action={setOverrideRating.bind(null, 'member', id)}
+                    position={position}
+                    tier={m.tier as string}
+                    seconds={Number(m.auto_entry_seconds ?? 0)}
                     override={m.override_rating === null ? null : Number(m.override_rating)}
                     summary={ratingSummary.get(id) ?? null}
-                    canEdit={isAdmin}
-                    label={name}
-                  />
-                )}
-
-                {canEdit ? (
-                  <PositionSelect
-                    action={setPlayerPosition.bind(null, id)}
-                    value={position}
-                    label={name}
                   />
                 ) : (
                   <span className="badge badge-muted">
@@ -281,7 +261,7 @@ export default async function PlayersPage() {
               const playedCount = guestMatchCount.get(id) ?? 0;
 
               return (
-                <li key={id} className="flex items-center gap-3 px-4 py-2.5">
+                <li key={id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-frost-100">{name}</div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -315,30 +295,15 @@ export default async function PlayersPage() {
                     </div>
                   </div>
 
-                  {isAdmin && (
-                    <TierSelect
-                      action={setPlayerTier.bind(null, 'guest', id)}
-                      value={g.tier as string}
-                      seconds={Number(g.auto_entry_seconds ?? 0)}
+                  {isAdmin ? (
+                    <PlayerSettings
+                      action={savePlayerSettings.bind(null, 'guest', id)}
                       label={name}
-                    />
-                  )}
-
-                  {isAdmin && (
-                    <RatingCell
-                      action={setOverrideRating.bind(null, 'guest', id)}
+                      position={position}
+                      tier={g.tier as string}
+                      seconds={Number(g.auto_entry_seconds ?? 0)}
                       override={g.override_rating === null ? null : Number(g.override_rating)}
                       summary={ratingSummary.get(id) ?? null}
-                      canEdit={isAdmin}
-                      label={name}
-                    />
-                  )}
-
-                  {isAdmin ? (
-                    <PositionSelect
-                      action={setGuestPosition.bind(null, id)}
-                      value={position}
-                      label={name}
                     />
                   ) : (
                     <span className="badge badge-muted">
