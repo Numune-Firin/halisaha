@@ -4,6 +4,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { SquadMember } from '@/lib/db/squad';
 import { POSITION_SHORT } from '@/lib/ui/position';
 import { ToastForm } from '@/components/ToastForm';
+import { useToast } from '@/components/Toast';
 import type { ActionResult } from '@/lib/actions/result';
 import {
   applyFormation,
@@ -73,6 +74,7 @@ export function PitchLineup({
   });
 
   const pitchRef = useRef<HTMLDivElement>(null);
+  const { show } = useToast();
 
   const pool = squad.filter((m) => !spots[m.id]);
   const onPitch = (team: LineupTeam) => squad.filter((m) => spots[m.id]?.team === team);
@@ -142,21 +144,38 @@ export function PitchLineup({
     });
   }
 
+  /**
+   * Takimlari degistirmeden herkesi mevkisine gore hizalar: kaleci kalede,
+   * defans arkada, forvet ileride. Diziliş zaten duzgunse bir sey degismez,
+   * o yuzden sonucu soyluyoruz — yoksa dugme bozuk sanilıyor.
+   */
   function autoArrange() {
     const teams: Record<string, LineupTeam> = {};
     for (const [id, spot] of Object.entries(spots)) teams[id] = spot.team;
-    setSpots(arrangeLineup(people, teams));
+
+    const next = arrangeLineup(people, teams);
+    const changed = JSON.stringify(next) !== JSON.stringify(spots);
+
+    setSpots(next);
     setIsSuggestion(false);
+    show(
+      changed
+        ? 'Oyuncular mevkilerine göre dizildi'
+        : 'Diziliş zaten mevkilere göre düzenli',
+    );
   }
 
+  /** Takimlari bastan kurar: kim hangi takimda, yildiz ortalamasina gore. */
   function rebalance() {
     setSpots(suggestLineup(people));
     setIsSuggestion(true);
+    show('Takımlar yıldızlara göre yeniden kuruldu');
   }
 
   function clearPitch() {
     setSpots({});
     setIsSuggestion(false);
+    show('Saha boşaltıldı, herkes havuzda');
   }
 
   /** Secilen taktige gore o takimi yeniden dizer; karsi takima dokunmaz. */
@@ -189,18 +208,45 @@ export function PitchLineup({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="badge badge-muted">{pool.length} bekliyor</span>
-        <button type="button" onClick={autoArrange} className="btn btn-ghost btn-sm">
-          Otomatik diz
+        <button
+          type="button"
+          onClick={autoArrange}
+          title="Takımları değiştirmeden herkesi mevkisine göre hizalar"
+          className="btn btn-ghost btn-sm"
+        >
+          Mevkilere göre diz
         </button>
         {showRatings && (
-          <button type="button" onClick={rebalance} className="btn btn-ghost btn-sm">
+          <button
+            type="button"
+            onClick={rebalance}
+            title="Takımları baştan kurar: kim hangi takımda olacak, yıldızlara göre"
+            className="btn btn-ghost btn-sm"
+          >
             Yıldıza göre dengele
           </button>
         )}
-        <button type="button" onClick={clearPitch} className="btn btn-ghost btn-sm">
+        <button
+          type="button"
+          onClick={clearPitch}
+          title="Herkesi havuza alır, sahayı sıfırdan kurarsın"
+          className="btn btn-ghost btn-sm"
+        >
           Sahayı boşalt
         </button>
       </div>
+
+      <p className="hint">
+        <strong>Mevkilere göre diz</strong> takımlara dokunmaz, sadece herkesi kendi yarısında
+        hizalar.{' '}
+        {showRatings && (
+          <>
+            <strong>Yıldıza göre dengele</strong> ise kimin hangi takımda olacağını baştan
+            belirler.{' '}
+          </>
+        )}
+        Oyuncuyu sürükleyerek her zaman elle taşıyabilirsin.
+      </p>
 
       <div className="grid gap-2 sm:grid-cols-2">
         {(['black', 'white'] as const).map((team) => {
