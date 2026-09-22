@@ -11,11 +11,16 @@ const PLAYER_GROUP: NavGroup = {
     { href: '/matches', label: 'Maçlar', description: 'Geçmiş anketler ve maçlar' },
     { href: '/standings', label: 'Puan durumu', description: 'Sezonun oyuncu sıralaması' },
     { href: '/players', label: 'Oyuncular', description: 'Kadro listesi ve mevkiler' },
+    {
+      href: '/feedback',
+      label: 'İstek ve şikayet',
+      description: 'Yöneticilere yaz, cevabını gör',
+    },
   ],
 };
 
 /** Onay bekleyen uye sayisi menude rozet olarak durur; sayfa acmadan gorulur. */
-function adminGroup(pendingCount: number): NavGroup {
+function adminGroup(pendingCount: number, openFeedback: number): NavGroup {
   return {
   title: 'Yönetim',
   items: [
@@ -29,6 +34,12 @@ function adminGroup(pendingCount: number): NavGroup {
       label: 'Üyeler ve davetler',
       description: 'Onay bekleyenler ve davetler',
       badge: pendingCount,
+    },
+    {
+      href: '/admin/feedback',
+      label: 'İstek ve şikayetler',
+      description: 'Üyelerden gelen mesajlar',
+      badge: openFeedback,
     },
     { href: '/admin/teams', label: 'Takımlar', description: 'Takım tanımı ve sahadaki ikisi' },
     {
@@ -68,6 +79,7 @@ export async function AppShell({
   const isAdmin = profile.role === 'admin';
 
   let pendingCount = 0;
+  let openFeedback = 0;
   if (isAdmin) {
     const supabase = await createServerSupabase();
     const { count } = await supabase
@@ -75,11 +87,15 @@ export async function AppShell({
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
     pendingCount = count ?? 0;
+
+    // Cevap bekleyen istek/sikayet sayisi menude rozet olarak durur
+    const { data: openCount } = await supabase.rpc('open_feedback_count');
+    openFeedback = (openCount as number | null) ?? 0;
   }
 
   return (
     <AppChrome
-      groups={isAdmin ? [PLAYER_GROUP, adminGroup(pendingCount)] : [PLAYER_GROUP]}
+      groups={isAdmin ? [PLAYER_GROUP, adminGroup(pendingCount, openFeedback)] : [PLAYER_GROUP]}
       userName={profile.full_name || 'Oyuncu'}
       isAdmin={isAdmin}
       signOutAction={signOut}
