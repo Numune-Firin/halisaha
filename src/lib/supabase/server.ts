@@ -29,7 +29,17 @@ export type Profile = {
   full_name: string;
   role: 'admin' | 'player';
   status: 'pending' | 'active' | 'inactive';
+  /** Sistem sahibi kontrolu bu adrese bakar; oturum acan herkeste dolu */
+  email: string | null;
 };
+
+/** Ligi kuran ve altyapiyi yuruten kisi. Yoneticiligi dusurulemez. */
+const SYSTEM_OWNER_EMAIL = 'mustafaaozcan@gmail.com';
+
+/** Bu kisi sistem sahibi mi? Ayni kontrol veritabaninda da var. */
+export function isSystemOwner(profile: Profile | null): boolean {
+  return (profile?.email ?? '').toLowerCase() === SYSTEM_OWNER_EMAIL;
+}
 
 /** Oturum acmis kullanicinin profili. Oturum yoksa null. */
 export async function getCurrentProfile(): Promise<Profile | null> {
@@ -39,7 +49,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, role, status')
+    .select('id, full_name, role, status, email')
     .eq('id', user.id)
     .single();
 

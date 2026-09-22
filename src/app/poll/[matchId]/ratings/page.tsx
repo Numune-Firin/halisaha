@@ -1,13 +1,18 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
-import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
+import {
+  createServerSupabase,
+  getCurrentProfile,
+  isSystemOwner,
+} from '@/lib/supabase/server';
 import { getSquad } from '@/lib/db/squad';
 import { finalizeDueMvps } from '@/lib/db/ratings';
 import { formatKickoff, formatShort, type MatchStatus } from '@/lib/ui/format';
 import {
   addComment,
   deleteComment,
+  setMatchMvp,
   deleteRating,
   editComment,
   ratePlayer,
@@ -21,6 +26,7 @@ import { ToastForm } from '@/components/ToastForm';
 type RatingRow = {
   id: string;
   rater_id: string;
+  weight?: number;
   ratee_player_id: string | null;
   ratee_guest_id: string | null;
   stars: number;
@@ -59,6 +65,8 @@ export default async function RatingsPage({
   if (profile.status !== 'active') redirect('/pending-approval');
 
   const isAdmin = profile.role === 'admin';
+  // Sistem sahibi: oy agirligini belirleyebilen tek kisi
+  const isOwner = isSystemOwner(profile);
 
   // Suresi dolmus maclarin MVP'si burada belirlenir; ayri bir zamanlanmis
   // gorev yok, sayfayi acan kisi tetikler.
@@ -88,16 +96,20 @@ export default async function RatingsPage({
   // hepsini okur. Burada ayrica filtre koymaya gerek yok.
   const { data: ratingRows, error: ratingError } = await supabase
     .from('match_ratings')
-    .select('id, rater_id, ratee_player_id, ratee_guest_id, stars, profiles!match_ratings_rater_id_fkey(full_name)')
+    .select('id, rater_id, ratee_player_id, ratee_guest_id, stars, weight, profiles!match_ratings_rater_id_fkey(full_name)')
     .eq('match_id', matchId);
   if (ratingError) throw new Error(ratingError.message);
 
   const ratings = (ratingRows ?? []) as unknown as RatingRow[];
   const myStars = new Map<string, number>();
+  const myWeights = new Map<string, number>();
   const byRatee = new Map<string, RatingRow[]>();
   for (const row of ratings) {
     const key = rateeKey(row);
-    if (row.rater_id === profile.id) myStars.set(key, row.stars);
+    if (row.rater_id === profile.id) {
+      myStars.set(key, row.stars);
+      myWeights.set(key, row.weight ?? 1);
+    }
     byRatee.set(key, [...(byRatee.get(key) ?? []), row]);
   }
 
@@ -165,6 +177,34 @@ export default async function RatingsPage({
                 ? 'Sonraki ankette VIP olarak listeye yazıldı'
                 : 'En yüksek ortalamayı alan oyuncu MVP olur'}
             </p>
+
+            {isAdmin && (
+              <ToastForm
+                action={setMatchMvp.bind(null, matchId)}
+                className="mt-3 flex flex-wrap items-center gap-2"
+              >
+                <select
+                  name="mvp"
+                  key={mvpId ?? 'none'}
+                  defaultValue={
+                    mvp ? `${mvp.playerId ? 'm' : 'g'}:${mvp.playerId ?? mvp.guestId}` : ''
+                  }
+                  aria-label="Maçın yıldızı"
+                  className="input input-sm w-44"
+                >
+                  <option value="">Oylamaya göre belirlensin</option>
+                  {squad.map((m) => (
+                    <option
+                      key={m.id}
+                      value={`${m.playerId ? 'm' : 'g'}:${m.playerId ?? m.guestId}`}
+                    >
+                      {m.fullName}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn btn-ghost btn-sm">Kaydet</button>
+              </ToastForm>
+            )}
           </div>
         </section>
       )}
@@ -265,6 +305,8 @@ export default async function RatingsPage({
                         guestId: m.guestId,
                       })}
                       value={myStars.get(key) ?? null}
+                      weight={myWeights.get(key) ?? 1}
+                      canWeigh={isOwner}
                       label={m.fullName}
                     />
                   ) : null}

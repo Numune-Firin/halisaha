@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { ToastForm } from '@/components/ToastForm';
 import type { ActionResult } from '@/lib/actions/result';
 
@@ -9,17 +9,25 @@ const STARS = [1, 2, 3, 4, 5];
 /**
  * Bes yildiz. Tiklanan yildiz formu kendiliginden gonderir, ayri kaydet
  * dugmesi yoktur. Yildizlar radio oldugu icin klavyeyle de secilebilir.
+ *
+ * Agirlik kutusu yalnizca sistem sahibine acilir: verdigi oyun kac oy
+ * sayilacagini belirler. Diger herkeste her oy bir sayilir.
  */
 export function StarRating({
   action,
   value,
   label,
+  weight,
+  canWeigh = false,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
   value: number | null;
   label: string;
+  weight?: number;
+  canWeigh?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [count, setCount] = useState(String(weight ?? 1));
 
   return (
     <ToastForm ref={formRef} action={action} className="flex items-center gap-0.5">
@@ -41,6 +49,26 @@ export function StarRating({
           ★
         </label>
       ))}
+
+      {canWeigh ? (
+        <label className="ml-1.5 flex items-center gap-1">
+          <input
+            name="weight"
+            type="number"
+            min={1}
+            max={20}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+            onBlur={() => value && formRef.current?.requestSubmit()}
+            aria-label={`${label}: oy ağırlığı`}
+            title="Bu oy kaç oy sayılsın"
+            className="input input-sm w-12"
+          />
+          <span className="text-xs text-ink-500">oy</span>
+        </label>
+      ) : (
+        <input type="hidden" name="weight" value="1" />
+      )}
     </ToastForm>
   );
 }

@@ -30,11 +30,16 @@ export async function ratePlayer(
     }
 
     const supabase = await createServerSupabase();
+    // Agirlik yalnizca sistem sahibinde islenir; digerlerinde her oy bir sayilir
+    const raw = Number(formData.get('weight') ?? 1);
+    const weight = Number.isInteger(raw) && raw >= 1 && raw <= 20 ? raw : 1;
+
     const { error } = await supabase.rpc('rate_player', {
       p_match_id: matchId,
       p_ratee_player_id: ratee.playerId,
       p_ratee_guest_id: ratee.guestId,
       p_stars: stars,
+      p_weight: weight,
     });
     if (error) throw new Error(error.message);
 
@@ -164,5 +169,32 @@ export async function deleteRating(matchId: string, ratingId: string) {
     if (error) throw new Error(error.message);
 
     revalidatePath(`/poll/${matchId}/ratings`);
+  });
+}
+
+/**
+ * Macin yildizini elle secer. Secim yapildiktan sonra oylama bitiminde
+ * otomatik hesap devreye girmez; secimi kaldirmak icin bos deger gonderilir.
+ */
+export async function setMatchMvp(matchId: string, formData: FormData) {
+  return runAction('Maçın yıldızı kaydedildi', async () => {
+    await requireAdmin();
+
+    // Deger "m:<uuid>" (uye) ya da "g:<uuid>" (aday); bos ise secim kalkar
+    const raw = String(formData.get('mvp') ?? '').trim();
+    const playerId = raw.startsWith('m:') ? raw.slice(2) : null;
+    const guestId = raw.startsWith('g:') ? raw.slice(2) : null;
+
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.rpc('set_match_mvp', {
+      p_match_id: matchId,
+      p_player_id: playerId,
+      p_guest_id: guestId,
+    });
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/poll/${matchId}/ratings`);
+    revalidatePath(`/poll/${matchId}`);
+    revalidatePath('/');
   });
 }
