@@ -41,6 +41,16 @@ export default async function ProposalsPage({
 
   const isAdmin = profile.role === 'admin';
 
+  // Oneri yapmak yetki ister: yonetici her zaman, oyuncu yalnizca yetkiliyse.
+  // Yetkisi olmayan da sayfayi acar, onerileri okur.
+  const supabaseForRight = await createServerSupabase();
+  const { data: rightRow } = await supabaseForRight
+    .from('profiles')
+    .select('can_propose_squad')
+    .eq('id', profile.id)
+    .maybeSingle();
+  const mayPropose = isAdmin || rightRow?.can_propose_squad === true;
+
   const supabase = await createServerSupabase();
   const { data: match, error } = await supabase
     .from('matches')
@@ -59,7 +69,8 @@ export default async function ProposalsPage({
   const isPollOpen = status === 'poll_open';
   const isCancelled = status === 'cancelled';
   // Oneri penceresi: kadro kesinlesince acilir, mac saatinde kapanir
-  const canPropose = status === 'squad_locked' && kickoff.getTime() > Date.now();
+  const isWindowOpen = status === 'squad_locked' && kickoff.getTime() > Date.now();
+  const canPropose = isWindowOpen && mayPropose;
 
   const { data: proposalRows, error: proposalError } = await supabase
     .from('squad_proposals')
@@ -102,8 +113,18 @@ export default async function ProposalsPage({
       }
     >
       <div className="card card-pad text-sm leading-relaxed text-ink-300">
-        Takımı yönetici kurar ama fikir herkesin. Kendi dağılımını kaydet, herkes görsün.
-        İstediğin zaman değiştirebilirsin; son kaydettiğin geçerli olur.
+        {mayPropose ? (
+          <>
+            Takımı yönetici kurar ama fikir herkesin. Kendi dağılımını kaydet, herkes görsün.
+            İstediğin zaman değiştirebilirsin; son kaydettiğin geçerli olur.
+          </>
+        ) : (
+          <>
+            Öneriler herkese açık, ama <strong>öneri yapma yetkisi</strong> yöneticinin verdiği
+            kişilerde. İstersen yöneticiden isteyebilirsin; o zamana kadar aşağıdaki önerileri
+            okuyabilirsin.
+          </>
+        )}
       </div>
 
       {isPollOpen && (
@@ -117,7 +138,7 @@ export default async function ProposalsPage({
         <div className="card card-pad text-sm text-ink-300">Bu hafta iptal edildi.</div>
       )}
 
-      {!isPollOpen && !isCancelled && !canPropose && (
+      {!isPollOpen && !isCancelled && !isWindowOpen && (
         <div className="card card-pad text-sm text-ink-300">
           Maç saati geçti, öneri kapandı. Aşağıdaki öneriler kayıtta duruyor.
         </div>

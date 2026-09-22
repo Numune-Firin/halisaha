@@ -14,6 +14,7 @@ import {
   setOverrideRating,
   setPlayerPosition,
   setPlayerTier,
+  setProposalRight,
 } from './actions';
 import { RatingCell } from './RatingCell';
 import { TierSelect } from './TierSelect';
@@ -30,7 +31,7 @@ export default async function PlayersPage() {
 
   const { data: members, error: memberError } = await supabase
     .from('profiles')
-    .select('id, full_name, position, role, status, override_rating, tier, email, auto_entry_seconds')
+    .select('id, full_name, position, role, status, override_rating, tier, email, auto_entry_seconds, can_propose_squad')
     .in('status', isAdmin ? ['active', 'inactive'] : ['active'])
     .order('full_name');
   if (memberError) throw new Error(memberError.message);
@@ -141,6 +142,21 @@ export default async function PlayersPage() {
                       <span className={TIER_BADGES[m.tier as PlayerTier] as string}>
                         {TIER_LABELS[m.tier as PlayerTier]}
                       </span>
+                    )}
+                    {/* Yonetici zaten onerebilir; rozet yalnizca yetki verilen oyuncuda */}
+                    {m.role !== 'admin' && m.can_propose_squad === true && (
+                      <span className="badge badge-priority">Kadro önerebilir</span>
+                    )}
+                    {isAdmin && m.status === 'active' && m.role !== 'admin' && (
+                      <ToastForm
+                        action={setProposalRight.bind(null, id, m.can_propose_squad !== true)}
+                      >
+                        <button className="text-xs text-ink-300 underline">
+                          {m.can_propose_squad === true
+                            ? 'Öneri yetkisini al'
+                            : 'Kadro önerme yetkisi ver'}
+                        </button>
+                      </ToastForm>
                     )}
                     {isAdmin && m.status === 'active' && (
                       <ToastForm action={setMemberRole.bind(null, id, m.role !== 'admin')}>

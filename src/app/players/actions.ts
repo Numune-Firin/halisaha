@@ -192,6 +192,30 @@ export async function setPlayerTier(
  * Son yonetici cikarilamaz: kimse kalmazsa uye onaylayacak, anket acacak,
  * kadro kesinlestirecek kimse olmaz ve sisteme geri girilemez.
  */
+/**
+ * Kadro onerisi yetkisi. Yonetici zaten onerebilir; bu anahtar oyuncular
+ * icindir: "bu isten anlayan" birkac kisiye acilir, kalanlar onerileri okur.
+ */
+export async function setProposalRight(playerId: string, canPropose: boolean) {
+  return runAction(
+    canPropose ? 'Kadro önerisi yetkisi verildi' : 'Kadro önerisi yetkisi alındı',
+    async () => {
+      await requireAdmin();
+
+      const supabase = await createServerSupabase();
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ can_propose_squad: canPropose })
+        .eq('id', playerId)
+        .select('id');
+      if (error) throw new Error(error.message);
+      if ((data ?? []).length === 0) throw new Error('Üye bulunamadı');
+
+      revalidatePath('/players');
+    },
+  );
+}
+
 export async function setMemberRole(playerId: string, makeAdmin: boolean) {
   return runAction('Yetki güncellendi', async () => {
     await requireAdmin();

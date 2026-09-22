@@ -309,11 +309,11 @@ export default async function PollPage({
         <section className="flex flex-col gap-3">
           <h2 className="section-title">Kadro önerileri</h2>
           <Link href={`/poll/${matchId}/proposals`} className="btn btn-go btn-block">
-            Takımını öner
+            Kadro önerileri
           </Link>
           <p className="hint">
-            Sence kim hangi takımda olmalı? Kendi dağılımını kaydet, herkes görsün. Yönetici
-            beğendiği öneriyi tek tıkla uygulayabilir.
+            Sence kim hangi takımda olmalı? Öneri yapma yetkisi olanlar kendi dizilişini
+            kaydeder, herkes görür; yönetici beğendiğini tek tıkla uygular.
           </p>
         </section>
       )}
