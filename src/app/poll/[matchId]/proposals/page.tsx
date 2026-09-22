@@ -155,16 +155,29 @@ export default async function ProposalsPage({
             const isMine = p.author_id === profile.id;
             const missing = squad.length - slotsOfProposal.length;
 
+            const black = slotsOfProposal.filter((slot) => slot.team === 'black').length;
+            const white = slotsOfProposal.filter((slot) => slot.team === 'white').length;
+
+            // Cok oneri birikince sayfa uzamasin: kartlar kapali gelir,
+            // yalnizca kendi onerin acik durur.
             return (
-              <article key={p.id as string} className="card card-pad flex flex-col gap-3">
-                <header className="flex flex-wrap items-center gap-2">
+              <details
+                key={p.id as string}
+                open={isMine}
+                className="card card-pad proposal-card"
+              >
+                <summary className="flex cursor-pointer flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-frost-100">
                     {author?.full_name || 'İsimsiz oyuncu'}
                   </span>
                   {isMine && <span className="badge badge-muted">Senin önerin</span>}
+                  <span className="badge badge-muted">
+                    {blackName} {black} · {whiteName} {white}
+                  </span>
                   <span className="hint ml-auto">{formatShort(p.updated_at as string)}</span>
-                </header>
+                </summary>
 
+                <div className="mt-3 flex flex-col gap-3">
                 <PitchView
                   squad={squad}
                   spots={spots}
@@ -192,7 +205,8 @@ export default async function ProposalsPage({
                     </ToastForm>
                   )}
                 </div>
-              </article>
+                </div>
+              </details>
             );
           })
         )}

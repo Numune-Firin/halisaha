@@ -41,7 +41,7 @@ export function PitchView({
             className={`token ${spot.team === 'black' ? 'token-black' : 'token-white'}`}
           >
             <span className="token-dot">{m.position ? POSITION_SHORT[m.position] : '•'}</span>
-            <span className="token-name">{m.fullName.split(' ')[0]}</span>
+            <span className="token-name">{m.fullName}</span>
           </span>
         );
       })}

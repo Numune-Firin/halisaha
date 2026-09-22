@@ -618,15 +618,38 @@ body {
   transform: scale(1.12);
 }
 
+/* Ad soyad tam yazilir; uzun isimler ikinci satira sarkar, kesilmez. */
 .token-name {
-  max-width: 5.5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 6.5rem;
   border-radius: 0.3rem;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   padding: 0 0.25rem;
   font-size: 0.62rem;
+  line-height: 1.25;
   font-weight: 600;
+  text-align: center;
   color: #ffffff;
+}
+
+/* Oneri karti: kapaliyken tek satir ozet, acilinca saha. Tarayicinin
+   varsayilan ucgen isaretcisi yerine acilip kapanan kendi okumuz. */
+.proposal-card > summary {
+  list-style: none;
+}
+
+.proposal-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.proposal-card > summary::after {
+  content: '▾';
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-ink-500);
+  transition: transform 150ms ease;
+}
+
+.proposal-card[open] > summary::after {
+  transform: rotate(180deg);
+  display: inline-block;
 }

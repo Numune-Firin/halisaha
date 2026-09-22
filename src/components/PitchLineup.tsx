@@ -6,8 +6,10 @@ import { POSITION_SHORT } from '@/lib/ui/position';
 import { ToastForm } from '@/components/ToastForm';
 import type { ActionResult } from '@/lib/actions/result';
 import {
+  applyFormation,
   arrangeLineup,
   clampToPitch,
+  formationsFor,
   suggestLineup,
   teamForY,
   type LineupSpot,
@@ -63,6 +65,11 @@ export function PitchLineup({
   );
   const [isSuggestion, setIsSuggestion] = useState(!hasSaved);
   const [drag, setDrag] = useState<DragState | null>(null);
+  // Secili taktik yalnizca ekranda durur; kaydedilen sey oyuncularin konumu
+  const [formations, setFormations] = useState<Record<LineupTeam, string>>({
+    black: '',
+    white: '',
+  });
 
   const pitchRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +158,18 @@ export function PitchLineup({
     setIsSuggestion(false);
   }
 
+  /** Secilen taktige gore o takimi yeniden dizer; karsi takima dokunmaz. */
+  function setFormation(team: LineupTeam, formation: string) {
+    if (!formation) return;
+    setFormations((prev) => ({ ...prev, [team]: formation }));
+    setSpots((prev) => applyFormation(people, team, formation, prev));
+    setIsSuggestion(false);
+  }
+
+  /** O takimda kaleci mevkili biri var mi: taktik listesi buna gore degisir. */
+  const hasKeeper = (team: LineupTeam) =>
+    onPitch(team).some((m) => m.position === 'goalkeeper');
+
   const teamStars = (team: LineupTeam) => {
     const rated = onPitch(team).filter((m) => m.rating !== null);
     if (rated.length === 0) return null;
@@ -174,6 +193,32 @@ export function PitchLineup({
         <button type="button" onClick={clearPitch} className="btn btn-ghost btn-sm">
           Sahayı boşalt
         </button>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {(['black', 'white'] as const).map((team) => {
+          const options = formationsFor(onPitch(team).length, hasKeeper(team));
+          return (
+            <label key={team} className="field">
+              <span className="label">
+                {team === 'black' ? blackName : whiteName} taktiği
+              </span>
+              <select
+                value={formations[team]}
+                onChange={(e) => setFormation(team, e.target.value)}
+                disabled={options.length === 0}
+                className="input"
+              >
+                <option value="">Seç…</option>
+                {options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
       </div>
 
       <div
@@ -218,7 +263,7 @@ export function PitchLineup({
               <span className="token-dot">
                 {m.position ? POSITION_SHORT[m.position] : '•'}
               </span>
-              <span className="token-name">{m.fullName.split(' ')[0]}</span>
+              <span className="token-name">{m.fullName}</span>
             </button>
           );
         })}
