@@ -5,6 +5,19 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { runAction } from '@/lib/actions/result';
 
+/** Sahadan gelen diziliş: [{id, team, x, y}]. Bozuk gelirse islem yapilmaz. */
+function readLineup(formData: FormData) {
+  const raw = String(formData.get('lineup') ?? '[]');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Diziliş okunamadı');
+  }
+  if (!Array.isArray(parsed)) throw new Error('Diziliş okunamadı');
+  return parsed;
+}
+
 /** Skor ve takim degisikligi puan durumunu da etkiler. */
 function revalidateResult(matchId: string) {
   revalidatePath(`/poll/${matchId}`);
@@ -15,29 +28,22 @@ function revalidateResult(matchId: string) {
 }
 
 /**
- * Kadroyu iki takima dagitir. Form alanlari "team:<match_squad.id>" adiyla
- * gelir, degeri black/white; takimi secilmeyen oyuncu icin alan hic
- * gonderilmez. Takim adlari buradan degismez, kaynagi "Takimlar" sayfasidir.
+ * Sahadaki dizilişi kaydeder: kim hangi takimda ve sahanin neresinde.
+ *
+ * Form tek bir "lineup" alani tasir, icerigi [{id, team, x, y}] listesidir.
+ * Sahaya konmayan oyuncu listede yoktur; takimsiz kalir ve maci oynamamis
+ * sayilir. Takim adlari buradan degismez, kaynagi "Takimlar" sayfasidir.
  */
 export async function saveTeams(matchId: string, formData: FormData) {
-  return runAction('Takımlar kaydedildi', async () => {
+  return runAction('Diziliş kaydedildi', async () => {
     await requireAdmin();
 
-    const blackIds: string[] = [];
-    const whiteIds: string[] = [];
-
-    for (const [key, value] of formData.entries()) {
-      if (!key.startsWith('team:')) continue;
-      const squadRowId = key.slice('team:'.length);
-      if (value === 'black') blackIds.push(squadRowId);
-      else if (value === 'white') whiteIds.push(squadRowId);
-    }
+    const rows = readLineup(formData);
 
     const supabase = await createServerSupabase();
-    const { error } = await supabase.rpc('set_squad_teams', {
+    const { error } = await supabase.rpc('set_squad_lineup', {
       p_match_id: matchId,
-      p_black_ids: blackIds,
-      p_white_ids: whiteIds,
+      p_rows: rows,
     });
     if (error) throw new Error(error.message);
 

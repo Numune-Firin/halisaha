@@ -6,7 +6,8 @@ import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { getSquad } from '@/lib/db/squad';
 import { formatKickoff } from '@/lib/ui/format';
 import { clearResult, refreshTeamNames, saveResult, saveTeams } from './actions';
-import { TeamPicker } from './TeamPicker';
+import { PitchLineup } from '@/components/PitchLineup';
+import { spotsFromSquad } from '@/lib/poll/lineup-data';
 import { ToastForm } from '@/components/ToastForm';
 
 export default async function ResultPage({ params }: { params: Promise<{ matchId: string }> }) {
@@ -82,8 +83,9 @@ export default async function ResultPage({ params }: { params: Promise<{ matchId
               </ToastForm>
             )}
 
-            <TeamPicker
+            <PitchLineup
               squad={squad}
+              initialSpots={spotsFromSquad(squad)}
               blackName={blackName}
               whiteName={whiteName}
               action={saveTeams.bind(null, matchId)}

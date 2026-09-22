@@ -31,6 +31,9 @@ export interface SquadMember {
    * yazilan kisilerde null kalir.
    */
   enteredAt: string | null;
+  /** Sahadaki yeri (yuzde); diziliş kurulmadiysa null */
+  posX: number | null;
+  posY: number | null;
 }
 
 /** Bir macin kesinlesmis kadrosu, isimleriyle ve takimlariyla. */
@@ -39,7 +42,7 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
 
   const { data, error } = await supabase
     .from('match_squad')
-    .select('id, team, amount_paid, player_id, guest_id, profiles(full_name, position, email, override_rating), guest_players(full_name, is_regular, position, override_rating)')
+    .select('id, team, amount_paid, pos_x, pos_y, player_id, guest_id, profiles(full_name, position, email, override_rating), guest_players(full_name, is_regular, position, override_rating)')
     .eq('match_id', matchId);
   if (error) throw new Error(error.message);
 
@@ -87,6 +90,8 @@ export async function getSquad(matchId: string): Promise<SquadMember[]> {
         amountPaid: Number(r.amount_paid ?? 0),
         rating: override ?? summary.get(participantId)?.average ?? null,
         enteredAt: enteredAtById.get(participantId) ?? null,
+        posX: r.pos_x === null || r.pos_x === undefined ? null : Number(r.pos_x),
+        posY: r.pos_y === null || r.pos_y === undefined ? null : Number(r.pos_y),
       };
     })
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'tr'));

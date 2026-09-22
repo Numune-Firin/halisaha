@@ -304,6 +304,20 @@ export default async function PollPage({
         </div>
       )}
 
+      {/* Kadro belli olduktan sonra herkes kendi takim dagilimini onerebilir */}
+      {match.status === 'squad_locked' && (
+        <section className="flex flex-col gap-3">
+          <h2 className="section-title">Kadro önerileri</h2>
+          <Link href={`/poll/${matchId}/proposals`} className="btn btn-go btn-block">
+            Takımını öner
+          </Link>
+          <p className="hint">
+            Sence kim hangi takımda olmalı? Kendi dağılımını kaydet, herkes görsün. Yönetici
+            beğendiği öneriyi tek tıkla uygulayabilir.
+          </p>
+        </section>
+      )}
+
       {(match.status === 'played' || match.status === 'completed') && (
         <section className="flex flex-col gap-3">
           <h2 className="section-title">Maç sonrası</h2>

@@ -4,7 +4,7 @@ import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { POSITION_LABELS, POSITION_OPTIONS } from '@/lib/ui/position';
 import type { Position } from '@/lib/poll/types';
 import { PositionSelect } from './PositionSelect';
-import { getRatingSummary } from '@/lib/db/ratings';
+import { getRatingSummary, type RatingSummary } from '@/lib/db/ratings';
 import {
   createPlayer,
   setGuestActive,
@@ -43,7 +43,13 @@ export default async function PlayersPage() {
 
   // Genel yildiz: butun maclardan gelen ortalama. Yonetici bu degeri ezerse
   // (override_rating) ortalama yerine o gosterilir.
-  const ratingSummary = await getRatingSummary();
+  //
+  // Kimin kac yildizi oldugu yalnizca yoneticiye gorunur: oyuncularin
+  // birbirini "iyi/kotu" diye siralamasi gruba iyi gelmiyor. Bu yuzden
+  // ortalamalar oyuncu icin hic sorgulanmaz da.
+  const ratingSummary: Map<string, RatingSummary> = isAdmin
+    ? await getRatingSummary()
+    : new Map();
 
   const { data: settings } = await supabase
     .from('settings')
@@ -155,13 +161,15 @@ export default async function PlayersPage() {
                   />
                 )}
 
-                <RatingCell
-                  action={setOverrideRating.bind(null, 'member', id)}
-                  override={m.override_rating === null ? null : Number(m.override_rating)}
-                  summary={ratingSummary.get(id) ?? null}
-                  canEdit={isAdmin}
-                  label={name}
-                />
+                {isAdmin && (
+                  <RatingCell
+                    action={setOverrideRating.bind(null, 'member', id)}
+                    override={m.override_rating === null ? null : Number(m.override_rating)}
+                    summary={ratingSummary.get(id) ?? null}
+                    canEdit={isAdmin}
+                    label={name}
+                  />
+                )}
 
                 {canEdit ? (
                   <PositionSelect
@@ -300,13 +308,15 @@ export default async function PlayersPage() {
                     />
                   )}
 
-                  <RatingCell
-                    action={setOverrideRating.bind(null, 'guest', id)}
-                    override={g.override_rating === null ? null : Number(g.override_rating)}
-                    summary={ratingSummary.get(id) ?? null}
-                    canEdit={isAdmin}
-                    label={name}
-                  />
+                  {isAdmin && (
+                    <RatingCell
+                      action={setOverrideRating.bind(null, 'guest', id)}
+                      override={g.override_rating === null ? null : Number(g.override_rating)}
+                      summary={ratingSummary.get(id) ?? null}
+                      canEdit={isAdmin}
+                      label={name}
+                    />
+                  )}
 
                   {isAdmin ? (
                     <PositionSelect
