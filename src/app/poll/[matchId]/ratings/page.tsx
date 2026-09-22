@@ -15,6 +15,7 @@ import {
   setVotingDeadline,
 } from './actions';
 import { StarRating } from './StarRating';
+import { auditVotes, VOTE_FLAG_LABELS } from '@/lib/poll/vote-audit';
 import { ToastForm } from '@/components/ToastForm';
 
 type RatingRow = {
@@ -99,6 +100,22 @@ export default async function RatingsPage({
     if (row.rater_id === profile.id) myStars.set(key, row.stars);
     byRatee.set(key, [...(byRatee.get(key) ?? []), row]);
   }
+
+  // Oylama denetimi yalnizca yoneticiye: oy satirlarinin tamamini o gorur
+  const auditFlags = isAdmin
+    ? auditVotes(
+        ratings.map((row) => {
+          const ratee = squad.find((m) => (m.playerId ?? m.guestId) === rateeKey(row));
+          return {
+            raterId: row.rater_id,
+            raterName: row.profiles?.full_name || 'İsimsiz oyuncu',
+            rateeId: rateeKey(row),
+            rateeName: ratee?.fullName || 'İsimsiz oyuncu',
+            stars: row.stars,
+          };
+        }),
+      )
+    : [];
 
   const { data: commentRows, error: commentError } = await supabase
     .from('match_comments')
@@ -261,6 +278,41 @@ export default async function RatingsPage({
             sonradan değiştirilemez. Yanlış verdiysen yöneticiye söyle: oyunu silerse yeniden
             verebilirsin.
           </p>
+        </section>
+      )}
+
+      {isAdmin && isPlayed && auditFlags.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="section-title">
+            Oylamada dikkat çeken{' '}
+            <span className="badge badge-muted">{auditFlags.length}</span>
+          </h2>
+
+          <div className="card card-pad border-amber-500/40 bg-amber-500/5">
+            <p className="hint">
+              Aşağıdakiler <strong>suçlama değil</strong>, bakmaya değer işaretler: oylar
+              beklenenden farklı dağılmış. Kimse kendine oy veremez, ama iki kişi anlaşıp
+              birbirine yüksek verebilir. Kararı sen verirsin — oyu silersen o kişi yeniden
+              oy verebilir.
+            </p>
+
+            <ul className="mt-3 flex flex-col gap-2">
+              {auditFlags.map((flag, index) => (
+                <li
+                  key={`${flag.raterId}-${flag.kind}-${index}`}
+                  className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-frost-100">
+                      {flag.raterName}
+                    </span>
+                    <span className="badge badge-vip">{VOTE_FLAG_LABELS[flag.kind]}</span>
+                  </div>
+                  <p className="mt-0.5 text-sm text-ink-300">{flag.message}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
 
