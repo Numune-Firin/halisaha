@@ -1,18 +1,19 @@
 /**
  * Oylama denetimi.
  *
- * Kimse kendine oy veremez (veritabani kurali), ama MVP'yi belirlemek icin
- * baska yollar var: bir kisiye bes verip kalan herkese bir vermek, ya da iki
- * kisinin birbirine bes verip digerlerini asagi cekmesi.
+ * Oyuncular kendine oy veremez; yonetici verebilir. MVP'yi belirlemenin
+ * baska yollari da var: bir kisiye bes verip kalan herkese bir vermek, ya da
+ * iki kisinin birbirine bes verip digerlerini asagi cekmesi.
  *
  * Buradaki olcumler suclama degil, "buna bir bak" isaretidir. Karari yonetici
  * verir; oyu silmek ya da oldugu gibi birakmak onun elinde.
  *
- * Dort isaret aranir:
+ * Bes isaret aranir:
  *   1) Kayirma       - birine verdigi, digerlerine verdiginin cok ustunde
  *   2) Bastirma      - herkese, digerlerinin verdiginden belirgin dusuk vermis
  *   3) Karsilikli    - iki kisi birbirine yuksek, digerlerine dusuk vermis
  *   4) Aykirilik     - verdigi puanlar grubun kanaatinden surekli uzak
+ *   5) Kendine oy    - yoneticinin kendine verdigi oy; gizlenmez, yazilir
  *
  * Esikler bilerek genis: az oyda ya da kucuk farkta uyari cikmaz, yoksa her
  * hafta herkes isaretlenir ve uyari anlamini yitirir.
@@ -26,7 +27,7 @@ export interface VoteRow {
   stars: number;
 }
 
-export type VoteFlagKind = 'favoritism' | 'suppression' | 'mutual' | 'outlier';
+export type VoteFlagKind = 'favoritism' | 'suppression' | 'mutual' | 'outlier' | 'self';
 
 export interface VoteFlag {
   raterId: string;
@@ -73,6 +74,18 @@ export function auditVotes(rows: VoteRow[]): VoteFlag[] {
   }
 
   const flags: VoteFlag[] = [];
+
+  // 5) Kendine oy: yalnizca yonetici verebilir. Sayisi az diye oy esigi
+  // aranmaz; suclama degil, diger yoneticiler gorsun diye yazilir.
+  for (const row of rows) {
+    if (row.raterId !== row.rateeId) continue;
+    flags.push({
+      raterId: row.raterId,
+      raterName: row.raterName,
+      kind: 'self',
+      message: `Kendine ${row.stars} yıldız verdi.`,
+    });
+  }
 
   for (const [raterId, given] of byRater) {
     if (given.length < MIN_VOTES) continue;
@@ -131,6 +144,8 @@ export function auditVotes(rows: VoteRow[]): VoteFlag[] {
   for (const [raterId, given] of byRater) {
     for (const vote of given) {
       if (vote.stars < MUTUAL_HIGH) continue;
+      // Kendine verilen oy ayri bir isarettir, karsilikli kayirma degil
+      if (vote.rateeId === raterId) continue;
 
       const back = (byRater.get(vote.rateeId) ?? []).find((r) => r.rateeId === raterId);
       if (!back || back.stars < MUTUAL_HIGH) continue;
@@ -164,4 +179,5 @@ export const VOTE_FLAG_LABELS: Record<VoteFlagKind, string> = {
   suppression: 'Herkesi aşağı çekmiş',
   mutual: 'Karşılıklı yüksek oy',
   outlier: 'Gruptan ayrışıyor',
+  self: 'Kendine oy verdi',
 };

@@ -96,3 +96,18 @@ describe('auditVotes', () => {
     expect(flags).toEqual([]);
   });
 });
+
+describe('kendine oy', () => {
+  it('yöneticinin kendine verdiği oyu işaretler', () => {
+    const flags = auditVotes(votes('a->a:5', 'a->b:3', 'a->c:3'));
+    const self = flags.filter((f) => f.kind === 'self');
+
+    expect(self).toHaveLength(1);
+    expect(self[0].message).toContain('5');
+  });
+
+  it('kendine oy için dört oy şartı aranmaz', () => {
+    // Tek satir bile olsa yazilir; kalan denetimler icin esik gecerli
+    expect(auditVotes(votes('a->a:4')).map((f) => f.kind)).toEqual(['self']);
+  });
+});

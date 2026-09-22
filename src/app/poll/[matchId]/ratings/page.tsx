@@ -277,6 +277,13 @@ export default async function RatingsPage({
             Verdiğin oyları yalnızca sen ve yönetici görür. <strong>Oy bir kez verilir</strong>,
             sonradan değiştirilemez. Yanlış verdiysen yöneticiye söyle: oyunu silerse yeniden
             verebilirsin.
+            {isAdmin && (
+              <>
+                {' '}
+                Yönetici olarak kadroda olmasan da oy verebilir, kendi satırını da
+                puanlayabilirsin; kendine verdiğin oy aşağıda ayrıca görünür.
+              </>
+            )}
           </p>
         </section>
       )}
@@ -291,9 +298,9 @@ export default async function RatingsPage({
           <div className="card card-pad border-amber-500/40 bg-amber-500/5">
             <p className="hint">
               Aşağıdakiler <strong>suçlama değil</strong>, bakmaya değer işaretler: oylar
-              beklenenden farklı dağılmış. Kimse kendine oy veremez, ama iki kişi anlaşıp
-              birbirine yüksek verebilir. Kararı sen verirsin — oyu silersen o kişi yeniden
-              oy verebilir.
+              beklenenden farklı dağılmış. Oyuncular kendine oy veremez, yöneticiler
+              verebilir; ayrıca iki kişi anlaşıp birbirine yüksek verebilir. Kararı sen
+              verirsin — oyu silersen o kişi yeniden oy verebilir.
             </p>
 
             <ul className="mt-3 flex flex-col gap-2">
