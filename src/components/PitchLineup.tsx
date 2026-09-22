@@ -10,6 +10,7 @@ import {
   arrangeLineup,
   clampToPitch,
   formationsFor,
+  isEvenSplit,
   suggestLineup,
   teamForY,
   type LineupSpot,
@@ -170,6 +171,12 @@ export function PitchLineup({
   const hasKeeper = (team: LineupTeam) =>
     onPitch(team).some((m) => m.position === 'goalkeeper');
 
+  // Takimlar denk olmali. Tek sayili kadroda esitlik mumkun olmadigi icin
+  // bir kisilik fark kabul edilir; iki ve uzeri fark kaydedilemez.
+  const blackCount = onPitch('black').length;
+  const whiteCount = onPitch('white').length;
+  const isUneven = !isEvenSplit(blackCount, whiteCount);
+
   const teamStars = (team: LineupTeam) => {
     const rated = onPitch(team).filter((m) => m.rating !== null);
     if (rated.length === 0) return null;
@@ -302,14 +309,22 @@ export function PitchLineup({
         </section>
       )}
 
-      {isSuggestion && (
+      {isUneven && (
+        <p className="card card-pad text-center text-sm text-red-300">
+          Takımlar denk değil: <strong>{blackName} {blackCount}</strong> ·{' '}
+          <strong>{whiteName} {whiteCount}</strong>. Kaydedebilmek için aradaki fark en fazla
+          bir kişi olmalı.
+        </p>
+      )}
+
+      {isSuggestion && !isUneven && (
         <p className="hint text-center">
           {note ??
             'Bu diziliş bir öneri: yıldız ortalamasına göre iki tarafı dengeliyor, kalecileri ayırıyor. Henüz kaydedilmedi — oyuncuları sürükleyip değiştir, sonra kaydet.'}
         </p>
       )}
 
-      <button type="submit" className="btn btn-primary btn-block">
+      <button type="submit" disabled={isUneven} className="btn btn-primary btn-block">
         {submitLabel}
       </button>
 

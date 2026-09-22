@@ -189,3 +189,14 @@ export function applyFormation(
 
   return next;
 }
+
+/**
+ * Takimlar denk mi? Tek sayili kadroda esitlik mumkun olmadigi icin bir
+ * kisilik fark kabul edilir; iki ve uzeri fark kaydedilemez.
+ *
+ * Ayni kural veritabaninda da var (set_squad_lineup, save_squad_proposal).
+ */
+export function isEvenSplit(blackCount: number, whiteCount: number): boolean {
+  if (blackCount + whiteCount === 0) return true;
+  return Math.abs(blackCount - whiteCount) <= 1;
+}

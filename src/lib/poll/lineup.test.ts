@@ -4,6 +4,7 @@ import {
   arrangeLineup,
   clampToPitch,
   formationsFor,
+  isEvenSplit,
   suggestLineup,
   teamForY,
 } from './lineup';
@@ -146,5 +147,25 @@ describe('applyFormation', () => {
   it('taktige sigmayan oyuncuyu da sahada tutar', () => {
     const spots = applyFormation(squad, 'black', '2-1', allBlack);
     expect(Object.keys(spots)).toHaveLength(squad.length);
+  });
+});
+
+describe('isEvenSplit', () => {
+  it('esit takimlari kabul eder', () => {
+    expect(isEvenSplit(7, 7)).toBe(true);
+  });
+
+  it('tek sayili kadroda bir kisilik farka izin verir', () => {
+    expect(isEvenSplit(7, 6)).toBe(true);
+    expect(isEvenSplit(6, 7)).toBe(true);
+  });
+
+  it('iki ve uzeri farki reddeder', () => {
+    expect(isEvenSplit(8, 6)).toBe(false);
+    expect(isEvenSplit(9, 5)).toBe(false);
+  });
+
+  it('bos sahayi sorun saymaz', () => {
+    expect(isEvenSplit(0, 0)).toBe(true);
   });
 });
