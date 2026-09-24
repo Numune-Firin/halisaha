@@ -11,6 +11,7 @@ import {
   money,
   type LedgerCategory,
 } from '@/lib/ui/ledger';
+import { dayKey, groupByDay, type CashMovement } from '@/lib/ui/cashflow';
 import { createAdjustmentEntry, deleteEntry, reverseEntry } from './actions';
 import { ToastForm } from '@/components/ToastForm';
 
@@ -39,6 +40,7 @@ type LedgerRow = {
 type SquadRow = {
   match_id: string;
   amount_paid: number;
+  paid_at: string | null;
   player_id: string | null;
   guest_id: string | null;
   profiles: { full_name: string } | null;
@@ -107,7 +109,9 @@ export default async function AccountingPage({
   if (matches.length > 0) {
     const { data: squadRows, error: squadError } = await supabase
       .from('match_squad')
-      .select('match_id, amount_paid, player_id, guest_id, profiles(full_name), guest_players(full_name)')
+      .select(
+        'match_id, amount_paid, paid_at, player_id, guest_id, profiles(full_name), guest_players(full_name)',
+      )
       .in(
         'match_id',
         matches.map((m) => m.id),
@@ -196,6 +200,64 @@ export default async function AccountingPage({
 
   const debtors = people.filter((p) => p.balance > 0);
 
+  // Kasa hareketleri: elle girilen gelir/giderler ile oyunculardan toplanan
+  // para tek listede. Odemeler kisi kisi yazilsa liste okunmaz oldugu icin
+  // ayni haftanin ayni gun alinan odemeleri tek satirda toplanir.
+  const kickoffById = new Map(matches.map((m) => [m.id, m.kickoff_at]));
+
+  const paymentBuckets = new Map<string, { amount: number; names: string[]; at: string | null }>();
+
+  for (const row of squad) {
+    const paid = Number(row.amount_paid ?? 0);
+    if (paid <= 0) continue;
+
+    // Eski kayitlarda odeme ani bos kalmis olabilir; o zaman mac gunune yazilir
+    const stamp = row.paid_at ?? null;
+    const day = dayKey(stamp ?? kickoffById.get(row.match_id) ?? today);
+    const key = `${row.match_id}|${day}`;
+
+    const bucket = paymentBuckets.get(key) ?? { amount: 0, names: [], at: null };
+    bucket.amount += paid;
+    bucket.names.push(
+      (row.player_id === null ? row.guest_players : row.profiles)?.full_name || 'İsimsiz oyuncu',
+    );
+    if (stamp && (!bucket.at || stamp > bucket.at)) bucket.at = stamp;
+    paymentBuckets.set(key, bucket);
+  }
+
+  const movements: CashMovement[] = [
+    ...ledger.map((row) => ({
+      id: row.id,
+      day: dayKey(row.occurred_on),
+      kind: 'ledger' as const,
+      direction: row.direction,
+      amount: row.amount,
+      label: LEDGER_CATEGORY_LABELS[row.category],
+      detail: row.description,
+      matchId: row.match_id,
+      at: null,
+      reversedAt: row.reversed_at,
+      reversesId: row.reverses_id,
+    })),
+    ...[...paymentBuckets.entries()].map(([key, bucket]) => {
+      const [matchId, day] = key.split('|');
+      const names = [...bucket.names].sort((a, b) => a.localeCompare(b, 'tr'));
+      return {
+        id: `payment:${key}`,
+        day,
+        kind: 'player' as const,
+        direction: 'income' as const,
+        amount: bucket.amount,
+        label: 'Oyuncu ödemesi',
+        detail: `${names.length} kişi · ${names.join(', ')}`,
+        matchId,
+        at: bucket.at,
+      };
+    }),
+  ];
+
+  const cashDays = groupByDay(movements);
+
   return (
     <AppShell
       profile={profile}
@@ -260,12 +322,14 @@ export default async function AccountingPage({
 
       <section className="flex flex-col gap-3">
         <h2 className="section-title">
-          Kasa hareketleri <span className="badge badge-muted">{ledger.length}</span>
+          Kasa hareketleri <span className="badge badge-muted">{movements.length}</span>
         </h2>
 
         <p className="hint">
-          Haftalık gelir/gider her maçın Ödemeler sayfasından girilir; haftaya tıklayınca oraya
-          gidersin. Buradan da her kaydı iptal edebilir ya da silebilirsin.
+          Oyunculardan toplanan para ve haftalık gelir/gider birlikte, gün gün listelenir.
+          Oyuncu ödemeleri aynı haftanın aynı gün alınanları tek satırda toplanır ve o haftanın
+          Ödemeler sayfasından değiştirilir. Elle girilen kayıtları buradan iptal edebilir ya da
+          silebilirsin.
         </p>
 
         <details className="card card-pad">
@@ -356,90 +420,116 @@ export default async function AccountingPage({
           </p>
         </details>
 
-        {ledger.length === 0 ? (
+        {cashDays.length === 0 ? (
           <div className="card card-pad text-sm text-ink-300">
-            Henüz gelir/gider kaydı yok. Saha ücreti, ikram ve bağışları her maçın
-            <strong> Ödemeler</strong> sayfasından, o haftanın üstündeki kutudan girersin.
+            Henüz kasa hareketi yok. Oyuncu ödemeleri ve o haftanın gelir/gideri her maçın
+            <strong> Ödemeler</strong> sayfasından girilir.
           </div>
         ) : (
-          <div className="card overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-sm">
-              <thead>
-                <tr className="border-b border-[color:var(--line)] text-xs uppercase tracking-wide text-ink-300">
-                  <th className="px-3 py-2.5 text-left">Hafta</th>
-                  <th className="px-3 py-2.5 text-left">Kalem</th>
-                  <th className="px-3 py-2.5 text-left">Detay</th>
-                  <th className="px-3 py-2.5 text-right">Tutar</th>
-                  <th className="px-3 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-line">
-                {ledger.map((row) => (
-                  <tr key={row.id}>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-ink-300">
-                      {row.match_id ? (
-                        <Link
-                          href={`/poll/${row.match_id}/payments`}
-                          className="text-azure-400 underline"
-                        >
-                          {formatDay(row.occurred_on)}
-                        </Link>
-                      ) : (
-                        formatDay(row.occurred_on)
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span
-                        className={row.reversed_at ? 'text-ink-500 line-through' : 'text-frost-100'}
-                      >
-                        {LEDGER_CATEGORY_LABELS[row.category]}
-                      </span>
-                      {row.reversed_at && (
-                        <span className="badge badge-muted ml-2">İptal</span>
-                      )}
-                      {row.reverses_id && (
-                        <span className="badge badge-muted ml-2">Ters fiş</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-ink-300">{row.description || '—'}</td>
-                    <td
-                      className={`whitespace-nowrap px-3 py-2.5 text-right font-semibold ${
-                        row.direction === 'income' ? 'text-emerald-300' : 'text-red-300'
-                      }`}
-                    >
-                      {row.direction === 'income' ? '+' : '−'}
-                      {money(row.amount)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
-                      {!row.reversed_at && !row.reverses_id && (
-                        <ToastForm
-                          action={reverseEntry.bind(null, row.id, row.match_id)}
-                          className="inline"
-                        >
-                          <button
-                            className="text-xs text-ink-300 underline"
-                            title="Aynı tutarda ters fiş keser; iki kayıt da listede kalır"
+          <div className="flex flex-col gap-3">
+            {cashDays.map((day) => (
+              <div key={day.day} className="card overflow-hidden">
+                <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--line)] px-4 py-2.5">
+                  <span className="text-sm font-semibold text-frost-100">{formatDay(day.day)}</span>
+                  <span className="badge badge-muted">{day.movements.length} hareket</span>
+                  <span className="ml-auto text-xs text-ink-500">
+                    gelir {money(day.income)} · gider {money(day.expense)}
+                  </span>
+                  <span
+                    className={`text-sm font-semibold ${
+                      day.net < 0 ? 'text-red-300' : 'text-emerald-300'
+                    }`}
+                    title="Günün kasaya net etkisi"
+                  >
+                    {day.net < 0 ? '−' : '+'}
+                    {money(Math.abs(day.net))}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[34rem] text-sm">
+                    <tbody className="divide-line">
+                      {day.movements.map((row) => (
+                        <tr key={row.id}>
+                          <td className="whitespace-nowrap px-3 py-2.5 align-top">
+                            <span
+                              className={
+                                row.reversedAt ? 'text-ink-500 line-through' : 'text-frost-100'
+                              }
+                            >
+                              {row.label}
+                            </span>
+                            {row.reversedAt && <span className="badge badge-muted ml-2">İptal</span>}
+                            {row.reversesId && (
+                              <span className="badge badge-muted ml-2">Ters fiş</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 align-top text-ink-300">
+                            {row.detail ? (
+                              <span className="line-clamp-2" title={row.detail}>
+                                {row.detail}
+                              </span>
+                            ) : null}
+                            {row.matchId ? (
+                              <Link
+                                href={`/poll/${row.matchId}/payments`}
+                                className="text-xs text-azure-400 underline"
+                              >
+                                o haftaya git
+                              </Link>
+                            ) : (
+                              !row.detail && '—'
+                            )}
+                          </td>
+                          <td
+                            className={`whitespace-nowrap px-3 py-2.5 text-right align-top font-semibold ${
+                              row.direction === 'income' ? 'text-emerald-300' : 'text-red-300'
+                            }`}
                           >
-                            Ters fiş
-                          </button>
-                        </ToastForm>
-                      )}
-                      <ToastForm
-                        action={deleteEntry.bind(null, row.id, row.match_id)}
-                        className="ml-2 inline"
-                      >
-                        <button
-                          className="text-xs text-ink-500 underline"
-                          title="Kaydı tamamen kaldırır"
-                        >
-                          Sil
-                        </button>
-                      </ToastForm>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            {row.direction === 'income' ? '+' : '−'}
+                            {money(row.amount)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right align-top">
+                            {/* Oyuncu odemeleri buradan degistirilmez: tutar kadro
+                                satirinda durur, o haftanin Odemeler sayfasina aittir */}
+                            {row.kind === 'player' ? (
+                              <span className="text-xs text-ink-500">Ödemeler sayfasından</span>
+                            ) : (
+                              <>
+                                {!row.reversedAt && !row.reversesId && (
+                                  <ToastForm
+                                    action={reverseEntry.bind(null, row.id, row.matchId)}
+                                    className="inline"
+                                  >
+                                    <button
+                                      className="text-xs text-ink-300 underline"
+                                      title="Aynı tutarda ters fiş keser; iki kayıt da listede kalır"
+                                    >
+                                      Ters fiş
+                                    </button>
+                                  </ToastForm>
+                                )}
+                                <ToastForm
+                                  action={deleteEntry.bind(null, row.id, row.matchId)}
+                                  className="ml-2 inline"
+                                >
+                                  <button
+                                    className="text-xs text-ink-500 underline"
+                                    title="Kaydı tamamen kaldırır"
+                                  >
+                                    Sil
+                                  </button>
+                                </ToastForm>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>
