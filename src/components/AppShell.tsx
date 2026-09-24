@@ -12,6 +12,11 @@ const PLAYER_GROUP: NavGroup = {
     { href: '/standings', label: 'Puan durumu', description: 'Sezonun oyuncu sıralaması' },
     { href: '/players', label: 'Oyuncular', description: 'Kadro listesi ve mevkiler' },
     {
+      href: '/balances',
+      label: 'Bakiyeler',
+      description: 'Kim alacaklı, kim borçlu',
+    },
+    {
       href: '/feedback',
       label: 'İstek ve şikayet',
       description: 'Yöneticilere yaz, cevabını gör',
@@ -47,6 +52,7 @@ function adminGroup(pendingCount: number, openFeedback: number): NavGroup {
       label: 'Muhasebe',
       description: 'Sezonun para özeti ve borçlar',
     },
+
     {
       href: '/admin/adjustments',
       label: 'Ceza ve ödül',

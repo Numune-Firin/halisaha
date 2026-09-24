@@ -5,6 +5,7 @@ import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { LEDGER_CATEGORY_DIRECTION, parseLedgerCategory } from '@/lib/ui/ledger';
 import { getSquad } from '@/lib/db/squad';
+import { getMatchDues } from '@/lib/db/credit';
 import { formatKickoff } from '@/lib/ui/format';
 import { isMailConfigured, sendMail } from '@/lib/mail';
 import { runAction } from '@/lib/actions/result';
@@ -13,6 +14,7 @@ function revalidatePayments(matchId: string) {
   revalidatePath(`/poll/${matchId}/payments`);
   revalidatePath(`/poll/${matchId}`);
   revalidatePath('/admin/accounting');
+  revalidatePath('/balances');
   revalidatePath('/matches');
   revalidatePath('/');
 }
@@ -143,11 +145,8 @@ export async function setPayment(matchId: string, squadRowId: string, amount: nu
 }
 
 /**
- * Secilen kisilerin odemesini tek seferde yazar.
- *
- * On dort kisiyi tek tek isaretlemek yerine hepsini ya da eksik kalanlari
- * birlikte kapatmak icin. Tutar herkese ayni yazilir: tam ucret ya da sifir
- * (odemeyi geri almak).
+ * Secilen kisilerin odemesini tek seferde yazar. Tutar herkese ayni gider;
+ * odemeyi geri almak (sifir) icin kullanilir.
  */
 export async function setPaymentsBulk(matchId: string, squadRowIds: string[], amount: number) {
   return runAction('Ödemeler kaydedildi', async () => {
@@ -174,6 +173,46 @@ export async function setPaymentsBulk(matchId: string, squadRowIds: string[], am
   });
 }
 
+/**
+ * Secilen kisilerin o hafta odemesi gereken tutari yazar.
+ *
+ * Herkese ayni rakam yazilamaz: alacagi olan oyuncunun borcu alacagindan
+ * dusulur, kimi 600 oder, kimi hic odemez. Tutarlar veritabanindaki hesaptan
+ * (player_ledger) gelir.
+ */
+export async function setPaymentsToDue(matchId: string, squadRowIds: string[]) {
+  return runAction('Ödemeler kaydedildi', async () => {
+    await requireAdmin();
+    if (squadRowIds.length === 0) throw new Error('Kimse seçilmedi');
+
+    const dues = await getMatchDues(matchId);
+    const supabase = await createServerSupabase();
+
+    let cashless = 0;
+    for (const squadRowId of squadRowIds) {
+      const amount = dues.get(squadRowId)?.due ?? 0;
+      if (amount === 0) cashless += 1;
+
+      const { error } = await supabase.rpc('set_payment', {
+        p_squad_id: squadRowId,
+        p_amount: amount,
+      });
+      if (error) throw new Error(error.message);
+    }
+
+    revalidatePayments(matchId);
+
+    const kisi = `${squadRowIds.length} kişi`;
+    return {
+      ok: true,
+      message:
+        cashless > 0
+          ? `${kisi} ödedi olarak işaretlendi · ${cashless} kişinin borcu alacağından düşüldü`
+          : `${kisi} ödedi olarak işaretlendi`,
+    };
+  });
+}
+
 /** Satirdaki kutuya yazilan tutari kaydeder. */
 export async function savePaymentAmount(
   matchId: string,
@@ -186,16 +225,31 @@ export async function savePaymentAmount(
   });
 }
 
-/** Butun odemeler tamamlandiginda maci kapatir. */
-export async function completeMatch(matchId: string) {
+/**
+ * Haftanin muhasebesini kapatir.
+ *
+ * allowDebt ile acik odemeler kapanisa engel olmaz: kalan tutar o kisilerin
+ * borcu olarak durur ve sonraki haftanin ucretine eklenir.
+ */
+export async function completeMatch(matchId: string, allowDebt = false) {
   return runAction('Muhasebe kapatıldı', async () => {
     await requireAdmin();
 
     const supabase = await createServerSupabase();
-    const { error } = await supabase.rpc('complete_match', { p_match_id: matchId });
+    const { error } = await supabase.rpc('complete_match', {
+      p_match_id: matchId,
+      p_allow_debt: allowDebt,
+    });
     if (error) throw new Error(error.message);
 
     revalidatePayments(matchId);
+
+    return {
+      ok: true,
+      message: allowDebt
+        ? 'Muhasebe kapatıldı, açık kalan tutarlar borç olarak yazıldı'
+        : 'Muhasebe kapatıldı',
+    };
   });
 }
 
@@ -254,7 +308,11 @@ export async function sendPaymentReminder(matchId: string, force = false) {
 
     const fee = Number(match.fee_per_player ?? 0);
     const squad = await getSquad(matchId);
-    const debtors = squad.filter((m) => m.amountPaid < fee);
+    // Beklenen tutar kisiye gore degisir: alacagi olan daha az oder, gecmis
+    // borcu olanin borcu bu haftanin ucretine eklenir
+    const dues = await getMatchDues(matchId);
+    const dueOf = (squadRowId: string) => dues.get(squadRowId)?.due ?? fee;
+    const debtors = squad.filter((m) => m.amountPaid < dueOf(m.id));
     const recipients = debtors.map((m) => m.email).filter((e): e is string => Boolean(e));
 
     if (recipients.length === 0) {
@@ -274,7 +332,7 @@ export async function sendPaymentReminder(matchId: string, force = false) {
 
     const when = formatKickoff(match.kickoff_at as string);
     const lines = debtors.map((m) => {
-      const remaining = fee - m.amountPaid;
+      const remaining = dueOf(m.id) - m.amountPaid;
       return `- ${m.fullName}: ${remaining.toLocaleString('tr-TR')} ₺`;
     });
 

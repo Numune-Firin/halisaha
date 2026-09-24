@@ -85,8 +85,9 @@ export default async function AccountingPage({
     );
   }
 
-  // Iptal edilen hafta parasal olarak yoktur: ne oyuncu odemesi ne de o
-  // haftaya yazilmis gelir/gider kasaya girer.
+  // Iptal edilen haftada borc dogmaz ve o haftaya yazilmis gelir/gider kasaya
+  // girmez. Tahsil edilmis para ise gercektir: kasada kalir ve oyuncunun
+  // alacagina yazilir (bkz. /admin/balances).
   const { data: cancelledRows } = await supabase
     .from('matches')
     .select('id')
@@ -98,12 +99,15 @@ export default async function AccountingPage({
     .from('matches')
     .select('id, kickoff_at, venue, status, fee_per_player, sponsor_name')
     .eq('season_id', seasonId)
-    .in('status', ['squad_locked', 'played', 'completed'])
+    .in('status', ['squad_locked', 'played', 'completed', 'cancelled'])
     .order('kickoff_at', { ascending: false });
   if (matchError) throw new Error(matchError.message);
 
   const matches = (matchRows ?? []) as unknown as MatchRow[];
-  const feeById = new Map(matches.map((m) => [m.id, Number(m.fee_per_player ?? 0)]));
+  // Iptal haftada kimse borclanmaz; odenmis para oyuncunun alacagi olur
+  const feeById = new Map(
+    matches.map((m) => [m.id, m.status === 'cancelled' ? 0 : Number(m.fee_per_player ?? 0)]),
+  );
 
   let squad: SquadRow[] = [];
   if (matches.length > 0) {
@@ -146,7 +150,8 @@ export default async function AccountingPage({
       due: 0,
       paid: 0,
     };
-    person.played += 1;
+    // Iptal hafta oynanmis sayilmaz; ucreti de yoktur
+    if (fee > 0) person.played += 1;
     person.due += fee;
     person.paid += paid;
     perPerson.set(key, person);
@@ -315,7 +320,8 @@ export default async function AccountingPage({
             {money(Math.max(totalExpected - totalCollected, 0))}
           </p>
           <p className="mt-0.5 text-xs text-ink-500">
-            {debtors.length} kişide borç · {matches.length} maç
+            {debtors.length} kişide borç ·{' '}
+            {matches.filter((m) => m.status !== 'cancelled').length} maç
           </p>
         </div>
       </section>
@@ -537,6 +543,15 @@ export default async function AccountingPage({
       <section className="flex flex-col gap-3">
         <h2 className="section-title">Kişi bazlı</h2>
 
+        <p className="hint">
+          Bu tablo seçili sezonu gösterir. Bir oyuncunun geçmişten gelen alacağı, alacağın
+          hangi haftalarda eridiği ve bağışa çevrilen tutarlar için{' '}
+          <Link href="/balances" className="text-azure-400 underline">
+            Oyuncu bakiyeleri
+          </Link>{' '}
+          ekranına bak.
+        </p>
+
         {people.length === 0 ? (
           <div className="card card-pad text-sm text-ink-300">
             Bu sezonda henüz kadrosu kesinleşmiş maç yok.
@@ -582,14 +597,18 @@ export default async function AccountingPage({
                         {formatKickoff(m.kickoff_at)}
                       </div>
                       <div className="truncate text-xs text-ink-500">
-                        {m.venue || 'Saha belirtilmedi'} · kişi başı {money(Number(m.fee_per_player))}
+                        {m.status === 'cancelled'
+                          ? 'İptal edildi · borç doğmadı'
+                          : `${m.venue || 'Saha belirtilmedi'} · kişi başı ${money(Number(m.fee_per_player))}`}
                         {m.sponsor_name ? ` · sponsor: ${m.sponsor_name}` : ''}
                       </div>
                     </div>
                     <span className="text-sm text-ink-300">
                       {money(totals.collected)} / {money(totals.expected)}
                     </span>
-                    {totals.unpaid > 0 ? (
+                    {m.status === 'cancelled' ? (
+                      <span className="badge badge-danger">İptal</span>
+                    ) : totals.unpaid > 0 ? (
                       <span className="badge badge-muted">{totals.unpaid} kişi ödemedi</span>
                     ) : (
                       <span className="badge badge-live">Tamam</span>

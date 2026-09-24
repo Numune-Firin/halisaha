@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell';
 import { requireAdmin } from '@/lib/supabase/requireAdmin';
 import { createServerSupabase, getCurrentProfile } from '@/lib/supabase/server';
 import { getSquad } from '@/lib/db/squad';
+import { getMatchDues } from '@/lib/db/credit';
 import { formatKickoff, formatShort, type MatchStatus } from '@/lib/ui/format';
 import { isMailConfigured } from '@/lib/mail';
 import {
@@ -59,9 +60,19 @@ export default async function PaymentsPage({
   const fee = Number(match.fee_per_player ?? 0);
   const squad = await getSquad(matchId);
 
+  // Odemesi gereken tutar kisiye gore degisir: onceki haftalardan alacagi olan
+  // oyuncunun borcu once o alacaktan duser (src/lib/db/credit.ts)
+  const dues = await getMatchDues(matchId);
+  const dueOf = (squadRowId: string) => dues.get(squadRowId)?.due ?? fee;
+  const creditUsedOf = (squadRowId: string) => dues.get(squadRowId)?.creditUsed ?? 0;
+  const debtAddedOf = (squadRowId: string) => dues.get(squadRowId)?.debtAdded ?? 0;
+
   const collected = squad.reduce((sum, m) => sum + m.amountPaid, 0);
-  const expected = fee * squad.length;
-  const unpaid = squad.filter((m) => m.amountPaid < fee);
+  const expected = squad.reduce((sum, m) => sum + dueOf(m.id), 0);
+  const fromCredit = squad.reduce((sum, m) => sum + creditUsedOf(m.id), 0);
+  const fromDebt = squad.reduce((sum, m) => sum + debtAddedOf(m.id), 0);
+  const unpaid = squad.filter((m) => m.amountPaid < dueOf(m.id));
+  const missingTotal = unpaid.reduce((sum, m) => sum + (dueOf(m.id) - m.amountPaid), 0);
   const isClosed = status === 'completed';
 
   // Bu haftanin oyuncu odemesi disindaki gelir ve giderleri
@@ -120,7 +131,11 @@ export default async function PaymentsPage({
             <div className="card card-pad">
               <p className="text-xs uppercase tracking-wide text-ink-300">Toplanan</p>
               <p className="mt-1 text-lg font-semibold text-frost-100">{money(collected)}</p>
-              <p className="mt-0.5 text-xs text-ink-500">Beklenen {money(expected)}</p>
+              <p className="mt-0.5 text-xs text-ink-500">
+                Nakit beklenen {money(expected)}
+                {fromCredit > 0 ? ` · alacaktan ${money(fromCredit)}` : ''}
+                {fromDebt > 0 ? ` · eski borç ${money(fromDebt)}` : ''}
+              </p>
             </div>
             <div className="card card-pad">
               <p className="text-xs uppercase tracking-wide text-ink-300">Kalan</p>
@@ -132,7 +147,10 @@ export default async function PaymentsPage({
             <div className="card card-pad">
               <p className="text-xs uppercase tracking-wide text-ink-300">Kişi başı</p>
               <p className="mt-1 text-lg font-semibold text-frost-100">{money(fee)}</p>
-              <p className="mt-0.5 text-xs text-ink-500">{squad.length} kişilik kadro</p>
+              <p className="mt-0.5 text-xs text-ink-500">
+                {squad.length} kişilik kadro
+                {fromCredit > 0 ? ' · kimi alacağından ödüyor' : ''}
+              </p>
             </div>
           </section>
 
@@ -314,12 +332,14 @@ export default async function PaymentsPage({
 
           <SquadPayments
             matchId={matchId}
-            fee={fee}
             locked={isClosed}
             squad={squad.map((m) => ({
               id: m.id,
               fullName: m.fullName,
               amountPaid: m.amountPaid,
+              due: dueOf(m.id),
+              creditUsed: creditUsedOf(m.id),
+              debtAdded: debtAddedOf(m.id),
               isGuest: m.isGuest,
               isRegular: m.isRegular,
               enteredAt: m.enteredAt,
@@ -392,7 +412,7 @@ export default async function PaymentsPage({
                 <button className="btn btn-ghost btn-sm self-start">Muhasebeyi geri aç</button>
               </ToastForm>
             ) : (
-              <ToastForm action={completeMatch.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
+              <div className="card card-pad flex flex-col gap-2">
                 <p className="text-sm text-ink-300">
                   Herkes ödedikten sonra maçı kapat: durumu &quot;Tamamlandı&quot; olur. Skor ve
                   puan durumu bundan etkilenmez.
@@ -401,16 +421,34 @@ export default async function PaymentsPage({
                   {status !== 'played'
                     ? 'Kapatmak için önce skoru gir.'
                     : unpaid.length > 0
-                      ? `${unpaid.length} kişinin ödemesi eksik.`
+                      ? `${unpaid.length} kişinin ödemesi eksik: ${money(missingTotal)}.`
                       : 'Bütün ödemeler tamam.'}
                 </p>
-                <button
-                  className="btn btn-primary btn-sm self-start"
-                  disabled={status !== 'played' || unpaid.length > 0}
-                >
-                  Ödemeleri kapat
-                </button>
-              </ToastForm>
+
+                <ToastForm action={completeMatch.bind(null, matchId, false)}>
+                  <button
+                    className="btn btn-primary btn-sm self-start"
+                    disabled={status !== 'played' || unpaid.length > 0}
+                  >
+                    Ödemeleri kapat
+                  </button>
+                </ToastForm>
+
+                {/* Sahada herkes parayi o gun getirmiyor; acik kalan tutar
+                    oyuncunun borcu olur ve sonraki haftanin ucretine eklenir */}
+                {status === 'played' && unpaid.length > 0 && (
+                  <ToastForm action={completeMatch.bind(null, matchId, true)} className="mt-1">
+                    <p className="hint mb-2">
+                      Parasını getirmeyenleri bekletmek istemiyorsan haftayı borçlu kapatabilirsin:
+                      açık kalan {money(missingTotal)} o kişilerin borcu olarak durur ve sonraki
+                      haftanın ücretine eklenir.
+                    </p>
+                    <button className="btn btn-ghost btn-sm self-start">
+                      Borçlu olanlarla kapat ({unpaid.length} kişi)
+                    </button>
+                  </ToastForm>
+                )}
+              </div>
             )}
           </section>
         </>
