@@ -51,7 +51,7 @@ export function StarRating({
       ))}
 
       {canWeigh ? (
-        <label className="ml-1.5 flex items-center gap-1">
+        <span className="ml-1.5 flex items-center gap-1">
           <input
             name="weight"
             type="number"
@@ -59,13 +59,21 @@ export function StarRating({
             max={20}
             value={count}
             onChange={(e) => setCount(e.target.value)}
-            onBlur={() => value && formRef.current?.requestSubmit()}
             aria-label={`${label}: oy ağırlığı`}
             title="Bu oy kaç oy sayılsın"
             className="input input-sm w-12"
           />
-          <span className="text-xs text-ink-500">oy</span>
-        </label>
+          {/* Yildiza tiklamak formu gonderir; yalnizca agirligi degistirmek
+              isteyen icin ayri bir dugme gerekiyor */}
+          <button
+            type="submit"
+            disabled={!value}
+            title="Ağırlığı kaydet"
+            className="btn btn-ghost btn-sm"
+          >
+            oy
+          </button>
+        </span>
       ) : (
         <input type="hidden" name="weight" value="1" />
       )}
