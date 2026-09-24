@@ -137,12 +137,18 @@ export default async function ResultPage({ params }: { params: Promise<{ matchId
               Ödemelere geç
             </Link>
 
-            {hasResult && (
+            {/* Skoru olmayan "oynandi" mac eski kayitlarda kalmis olabilir;
+                geri donus yolu onlarda da acik olmali ki hafta iptal edilebilsin */}
+            {match.status === 'played' && (
               <ToastForm action={clearResult.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
                 <p className="text-sm text-ink-300">
-                  Skoru silersen maç kadro kesin durumuna döner ve puan durumundan çıkar.
+                  {hasResult
+                    ? 'Skoru silersen maç kadro kesin durumuna döner ve puan durumundan çıkar.'
+                    : 'Bu maçın skoru girilmemiş. Geri alırsan kadro kesin durumuna döner; sonra istersen haftayı iptal edebilirsin.'}
                 </p>
-                <button className="btn btn-danger btn-sm self-start">Skoru sil</button>
+                <button className="btn btn-danger btn-sm self-start">
+                  {hasResult ? 'Skoru sil' : 'Kadro kesin durumuna döndür'}
+                </button>
               </ToastForm>
             )}
           </section>
