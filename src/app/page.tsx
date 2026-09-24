@@ -64,7 +64,11 @@ export default async function HomePage() {
       .from('matches')
       .select('id', { count: 'exact', head: true })
       .eq('season_id', season.id as string)
-      .in('status', ['played', 'completed']);
+      .in('status', ['played', 'completed'])
+      // Puan durumu skora gore hesaplanir; sayac da ayni maclari saysin ki
+      // "iki mac oynandi ama puan durumunda bir mac var" celiskisi cikmasin
+      .not('black_score', 'is', null)
+      .not('white_score', 'is', null);
     playedCount = count ?? 0;
   }
 
