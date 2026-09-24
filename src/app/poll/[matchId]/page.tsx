@@ -20,7 +20,6 @@ import {
   adminRemoveEntry,
   cancelMatch,
   deleteMatch,
-  markMatchPlayed,
   restoreMatch,
   updateMatchDetails,
   togglePollEntry,
@@ -346,16 +345,6 @@ export default async function PollPage({
             ödeyince &quot;Ödemeler&quot; sayfasından maçı kapatırsın.
           </p>
         </section>
-      )}
-
-      {isAdmin && match.status === 'squad_locked' && (
-        <ToastForm action={markMatchPlayed.bind(null, matchId)} className="card card-pad flex flex-col gap-2">
-          <p className="text-sm text-ink-300">
-            Maç oynandıysa işaretle: durumu &quot;Oynandı&quot; olur ve oyuncular birbirini
-            oylamaya başlar. Skoru sonra da girebilirsin.
-          </p>
-          <button className="btn btn-go btn-sm self-start">Maç oynandı</button>
-        </ToastForm>
       )}
 
       {isAdmin && match.status === 'squad_locked' && (

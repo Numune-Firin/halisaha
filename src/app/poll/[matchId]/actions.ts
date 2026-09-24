@@ -275,22 +275,6 @@ export async function deleteMatch(matchId: string) {
   });
 }
 
-/** Skor beklemeden maci oynandi yapar; oylama bununla acilir. */
-export async function markMatchPlayed(matchId: string) {
-  return runAction('Maç oynandı olarak işaretlendi', async () => {
-    await requireAdmin();
-
-    const supabase = await createServerSupabase();
-    const { error } = await supabase.rpc('mark_match_played', { p_match_id: matchId });
-    if (error) throw new Error(error.message);
-
-    revalidatePath(`/poll/${matchId}`);
-    revalidatePath(`/poll/${matchId}/ratings`);
-    revalidatePath('/matches');
-    revalidatePath('/');
-  });
-}
-
 export async function cancelMatch(matchId: string, formData: FormData) {
   return runAction('Hafta iptal edildi', async () => {
     await requireAdmin();

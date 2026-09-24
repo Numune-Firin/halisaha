@@ -28,17 +28,23 @@ async function adminEmails(supabase: ReturnType<typeof createServiceSupabase>) {
 }
 
 /**
- * Mac saati gecmis ama "oynandi" ya da "iptal" olarak isaretlenmemis haftalar
- * icin yoneticilere haber verir. Her hafta icin bir kez gider; hafta
- * sonuclandiginda bayrak temizlenir.
+ * Askida kalmis haftalar icin yoneticilere haber verir: saati gecmis ama hala
+ * anket acik / kadro kesin duranlar ve oynandi sayilip skoru girilmemis olanlar.
+ * Her hafta icin bir kez gider; hafta sonuclandiginda bayrak temizlenir.
+ *
+ * Ayni tanim veritabanindaki unresolved_matches() icinde de var: ekran onu
+ * cagirir, bu is service_role ile dogrudan tabloyu okur.
  */
 export async function notifyUnresolvedMatches(): Promise<number> {
   const supabase = createServiceSupabase();
 
   const { data, error } = await supabase
     .from('matches')
-    .select('id, kickoff_at, venue, status, unresolved_notified_at')
-    .in('status', ['poll_open', 'squad_locked'])
+    .select('id, kickoff_at, venue, status, black_score, white_score, unresolved_notified_at')
+    .or(
+      'status.in.(poll_open,squad_locked),' +
+        'and(status.in.(played,completed),or(black_score.is.null,white_score.is.null))',
+    )
     .lt('kickoff_at', new Date().toISOString())
     .is('unresolved_notified_at', null);
   if (error) throw new Error(error.message);
@@ -63,17 +69,25 @@ export async function notifyUnresolvedMatches(): Promise<number> {
     if (!isMailConfigured() || admins.length === 0) continue;
 
     const when = formatKickoff(match.kickoff_at as string);
+    const isPlayed = match.status === 'played' || match.status === 'completed';
+
     await sendMail({
       to: admins.map((a) => a.email),
       subject: `Sonuçlanmamış hafta: ${when}`,
       text: [
         'Merhaba,',
         '',
-        `${when} · ${match.venue || 'saha belirtilmedi'} maçının saati geçti ama hâlâ`,
-        'sonucu girilmemiş. Yeni hafta açılmadan önce bu haftayı kapatman gerekiyor:',
+        isPlayed
+          ? `${when} · ${match.venue || 'saha belirtilmedi'} maçı oynandı görünüyor ama skoru`
+          : `${when} · ${match.venue || 'saha belirtilmedi'} maçının saati geçti ama hâlâ sonucu`,
+        isPlayed
+          ? 'girilmemiş. Skorsuz maç puan durumuna işlemez, hafta yarım kalır:'
+          : 'girilmemiş. Yeni hafta açılmadan önce bu haftayı kapatman gerekiyor:',
         '',
-        '  - Maç oynandıysa: maç sayfasından "Maç oynandı" ya da skoru gir',
-        '  - Oynanmadıysa: "Haftayı iptal et" ve sebebini yaz',
+        isPlayed
+          ? '  - Maç sayfasındaki "Takımlar ve skor" ekranından skoru gir'
+          : '  - Maç oynandıysa: oyuncuları iki takıma dağıtıp skoru gir',
+        ...(isPlayed ? [] : ['  - Oynanmadıysa: "Haftayı iptal et" ve sebebini yaz']),
         '',
         'Aksi halde puan durumu ve muhasebe eksik kalır.',
         'Numune Fırın Futbol Ligi',

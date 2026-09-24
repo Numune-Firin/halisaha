@@ -2,8 +2,8 @@
 -- HALI SAHA - TEK PARCA VERITABANI KURULUM DOSYASI
 -- =============================================================================
 --
--- Bu dosya, supabase/migrations/ klasorundeki otuz migration dosyasinin
--- (0001'den 0030'a) sirayla ve degistirilmeden birlestirilmis halidir.
+-- Bu dosya, supabase/migrations/ klasorundeki migration dosyalarinin
+-- (0001'den 0046'ya) sirayla ve degistirilmeden birlestirilmis halidir.
 -- Amac: Supabase panelindeki "SQL Editor"e tek seferde kopyala-yapistir-calistir
 -- yapabilmen; alti ayri dosyayla tek tek ugrasman gerekmesin.
 --
@@ -5287,4 +5287,380 @@ $$;
 revoke all on function public.set_member_role(uuid, boolean) from public;
 grant execute on function public.set_member_role(uuid, boolean) to authenticated;
 
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0044_owner_vote_weight.sql
+-- Sistem sahibinin oyu agirlikli sayilir; oylar agirlikli ortalamaya gore.
+-- -----------------------------------------------------------------------------
 
+-- Sistem sahibinin oy agirligi ve elle MVP secimi.
+--
+-- Iki sey ekleniyor:
+--
+--   1) Oy agirligi. Bir oy normalde bir sayilir. Sistem sahibi kendi verdigi
+--      oyun kac oy sayilacagini belirleyebilir (1-20). Ortalamalar ve MVP
+--      hesabi artik agirlikli calisir; agirligi bir olan herkes icin sonuc
+--      degismez.
+--
+--   2) Elle MVP. Yonetici macin yildizini dogrudan secebilir. Secildikten
+--      sonra oylama biterken otomatik hesap devreye girmez, cunku
+--      finalize_due_mvps yalnizca MVP'si bos maclara bakar.
+--
+-- Not: agirlik, kim kime ne verdi listesinde gosterilmez; ekranlar yildizi
+-- yazar. Bu bilincli bir tercih, istenirse gosterilebilir.
+
+alter table match_ratings
+  add column if not exists weight int not null default 1;
+
+do $$
+begin
+  alter table match_ratings
+    add constraint match_ratings_weight_ck check (weight between 1 and 20);
+exception when duplicate_object then null;
+end $$;
+
+-- Oy verme: agirligi yalnizca sistem sahibi degistirebilir.
+create or replace function public.rate_player(
+  p_match_id uuid,
+  p_ratee_player_id uuid,
+  p_ratee_guest_id uuid,
+  p_stars smallint,
+  p_weight int default 1
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_status match_status_t;
+  v_rater  uuid := auth.uid();
+  v_exists boolean;
+  v_weight int := 1;
+begin
+  if not is_active_member() then
+    raise exception 'Yetkisiz';
+  end if;
+
+  if p_stars is null or p_stars < 1 or p_stars > 5 then
+    raise exception 'Yıldız 1 ile 5 arasında olmalı';
+  end if;
+
+  if num_nonnulls(p_ratee_player_id, p_ratee_guest_id) <> 1 then
+    raise exception 'Oy verilen kişi belirsiz';
+  end if;
+
+  -- Kendine oy yalnizca yoneticiye acik
+  if p_ratee_player_id = v_rater and not public.is_admin() then
+    raise exception 'Kendine oy veremezsin';
+  end if;
+
+  -- Agirlik sistem sahibine ozeldir; digerlerinde her oy bir sayilir
+  if public.is_system_owner() and p_weight between 1 and 20 then
+    v_weight := p_weight;
+  end if;
+
+  select status into v_status from matches where id = p_match_id;
+  if v_status is null then
+    raise exception 'Maç bulunamadı';
+  end if;
+
+  if v_status not in ('played', 'completed') then
+    raise exception 'Oylama maç oynandı olarak işaretlenince açılır';
+  end if;
+
+  if not public.is_admin()
+     and not exists (
+       select 1 from match_squad
+        where match_id = p_match_id and player_id = v_rater
+     ) then
+    raise exception 'Bu maçın kadrosunda değilsin';
+  end if;
+
+  if not exists (
+    select 1 from match_squad
+     where match_id = p_match_id
+       and ((p_ratee_player_id is not null and player_id = p_ratee_player_id)
+         or (p_ratee_guest_id  is not null and guest_id  = p_ratee_guest_id))
+  ) then
+    raise exception 'Oy verilen kişi bu maçın kadrosunda değil';
+  end if;
+
+  select exists (
+    select 1 from match_ratings
+     where match_id = p_match_id
+       and rater_id = v_rater
+       and ((p_ratee_player_id is not null and ratee_player_id = p_ratee_player_id)
+         or (p_ratee_guest_id  is not null and ratee_guest_id  = p_ratee_guest_id))
+  ) into v_exists;
+
+  if v_exists and not public.is_admin() then
+    raise exception 'Oyunu verdin, değiştiremezsin. Yönetici silerse yeniden verebilirsin.';
+  end if;
+
+  if p_ratee_player_id is not null then
+    insert into match_ratings (match_id, rater_id, ratee_player_id, stars, weight)
+    values (p_match_id, v_rater, p_ratee_player_id, p_stars, v_weight)
+    on conflict (match_id, rater_id, ratee_player_id) where ratee_player_id is not null
+    do update set stars = excluded.stars, weight = excluded.weight, updated_at = now();
+  else
+    insert into match_ratings (match_id, rater_id, ratee_guest_id, stars, weight)
+    values (p_match_id, v_rater, p_ratee_guest_id, p_stars, v_weight)
+    on conflict (match_id, rater_id, ratee_guest_id) where ratee_guest_id is not null
+    do update set stars = excluded.stars, weight = excluded.weight, updated_at = now();
+  end if;
+end;
+$$;
+
+revoke all on function public.rate_player(uuid, uuid, uuid, smallint, int) from public;
+grant execute on function public.rate_player(uuid, uuid, uuid, smallint, int) to authenticated;
+
+-- Genel yildiz ozeti agirlikli hesaplanir.
+create or replace function public.rating_summary()
+returns table (participant_id uuid, is_guest boolean, average numeric, votes int)
+language sql security definer set search_path = public as $$
+  select coalesce(ratee_player_id, ratee_guest_id)              as participant_id,
+         ratee_player_id is null                                as is_guest,
+         round((sum(stars * weight)::numeric / sum(weight)), 1) as average,
+         sum(weight)::int                                       as votes
+    from match_ratings
+   where is_active_member()
+   group by 1, 2;
+$$;
+
+revoke all on function public.rating_summary() from public;
+grant execute on function public.rating_summary() to authenticated;
+
+-- MVP hesabi da agirlikli; esitlikte oy toplami, o da esitse ad sirasi.
+create or replace function public.finalize_due_mvps()
+returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  v_match  record;
+  v_best   record;
+  v_count  int := 0;
+begin
+  if not (is_active_member() or is_system_caller()) then
+    return 0;
+  end if;
+
+  for v_match in
+    select id from matches
+     where status in ('played', 'completed')
+       and voting_closes_at is not null
+       and voting_closes_at <= now()
+       and mvp_player_id is null
+       and mvp_guest_id is null
+  loop
+    select r.ratee_player_id, r.ratee_guest_id,
+           sum(r.stars * r.weight)::numeric / sum(r.weight) as average,
+           sum(r.weight) as votes
+      into v_best
+      from match_ratings r
+     where r.match_id = v_match.id
+     group by r.ratee_player_id, r.ratee_guest_id
+     order by sum(r.stars * r.weight)::numeric / sum(r.weight) desc, sum(r.weight) desc
+     limit 1;
+
+    if not found then
+      continue;
+    end if;
+
+    update matches
+       set mvp_player_id = v_best.ratee_player_id,
+           mvp_guest_id  = v_best.ratee_guest_id
+     where id = v_match.id;
+
+    insert into vip_grants (player_id, guest_id, source_match_id)
+    values (v_best.ratee_player_id, v_best.ratee_guest_id, v_match.id)
+    on conflict (source_match_id) do nothing;
+
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+revoke all on function public.finalize_due_mvps() from public;
+grant execute on function public.finalize_due_mvps() to authenticated, service_role;
+
+/**
+ * Macin yildizini elle secer ya da secimi kaldirir.
+ *
+ * Secildikten sonra otomatik hesap devreye girmez: finalize_due_mvps yalnizca
+ * MVP'si bos maclara bakar. Secimi kaldirmak icin iki parametre de null verilir;
+ * o zaman oylama bitiminde hesap yeniden calisir.
+ */
+create or replace function public.set_match_mvp(
+  p_match_id uuid, p_player_id uuid, p_guest_id uuid
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_status match_status_t;
+begin
+  if not public.is_admin() then
+    raise exception 'Yetkisiz';
+  end if;
+
+  if num_nonnulls(p_player_id, p_guest_id) > 1 then
+    raise exception 'Aynı anda iki kişi seçilemez';
+  end if;
+
+  select status into v_status from matches where id = p_match_id;
+  if v_status is null then
+    raise exception 'Maç bulunamadı';
+  end if;
+
+  if v_status not in ('played', 'completed') then
+    raise exception 'Maçın yıldızı ancak maç oynandıktan sonra seçilir';
+  end if;
+
+  if p_player_id is not null and not exists (
+    select 1 from match_squad where match_id = p_match_id and player_id = p_player_id
+  ) then
+    raise exception 'Seçilen kişi bu maçın kadrosunda değil';
+  end if;
+
+  if p_guest_id is not null and not exists (
+    select 1 from match_squad where match_id = p_match_id and guest_id = p_guest_id
+  ) then
+    raise exception 'Seçilen kişi bu maçın kadrosunda değil';
+  end if;
+
+  update matches
+     set mvp_player_id = p_player_id,
+         mvp_guest_id  = p_guest_id
+   where id = p_match_id;
+
+  -- MVP'nin sonraki ankette VIP olma hakki; secim degisirse eski hak kalkar
+  delete from vip_grants where source_match_id = p_match_id;
+
+  if num_nonnulls(p_player_id, p_guest_id) = 1 then
+    insert into vip_grants (player_id, guest_id, source_match_id)
+    values (p_player_id, p_guest_id, p_match_id)
+    on conflict (source_match_id) do nothing;
+  end if;
+end;
+$$;
+
+revoke all on function public.set_match_mvp(uuid, uuid, uuid) from public;
+grant execute on function public.set_match_mvp(uuid, uuid, uuid) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0045_drop_old_rate_player.sql
+-- Eski imzali rate_player kalkar; PostgREST agirlikli surume gider.
+-- -----------------------------------------------------------------------------
+
+-- Eski imzali rate_player kaldirilir.
+--
+-- 0044 agirlik parametresini ekleyince fonksiyonun iki surumu birden olustu:
+--   rate_player(uuid, uuid, uuid, smallint)        <- eski
+--   rate_player(uuid, uuid, uuid, smallint, int)   <- agirlikli
+--
+-- PostgREST cagriyi eski surume yonlendirdigi icin gonderilen agirlik yok
+-- sayiliyor, her oy bir sayiliyordu. Eski surum kalkinca tek aday kalir.
+
+drop function if exists public.rate_player(uuid, uuid, uuid, smallint);
+
+-- -----------------------------------------------------------------------------
+-- KAYNAK: supabase/migrations/0046_score_required.sql
+-- Skorsuz mac oynandi yapilamaz; skoru girilmemis hafta askida sayilir.
+-- -----------------------------------------------------------------------------
+
+-- Skorsuz mac "oynandi" olamaz.
+--
+-- 0018'de mark_match_played, oylama skoru beklemesin diye eklenmisti: yonetici
+-- maci oynandi isaretler, skoru ertesi gun girerdi. Uygulamada skor cogu zaman
+-- hic girilmedi. Skorsuz mac puan durumuna islemedigi icin "iki mac oynandi
+-- gorunuyor ama puan durumunda bir mac var" durumu olustu.
+--
+-- Artik maci oynandi yapmanin tek yolu skor girmektir: set_match_result skoru
+-- kaydederken maci zaten 'played' yapar ve iki takimda da oyuncu olmasini
+-- sarta baglar, yani puan durumuna islemeyen mac uretilemez.
+
+drop function if exists public.mark_match_played(uuid);
+
+-- Askidaki hafta tanimi genisledi.
+--
+-- Eskiden yalnizca "saati gecmis ama hala anket acik / kadro kesin" haftalar
+-- askida sayiliyordu. Skorsuz kapanmis haftalar da eksiktir: oylamasi acilir,
+-- parasi toplanir ama puan durumuna hic girmez. Onlar da uyariya girer ki
+-- yonetici skoru girip haftayi gercekten kapatsin.
+create or replace function public.unresolved_matches()
+returns table (
+  id uuid,
+  kickoff_at timestamptz,
+  venue text,
+  status match_status_t,
+  notified_at timestamptz
+)
+language sql security definer set search_path = public as $$
+  select m.id, m.kickoff_at, m.venue, m.status, m.unresolved_notified_at
+    from matches m
+   where is_active_member()
+     and m.kickoff_at < now()
+     and (
+       m.status in ('poll_open', 'squad_locked')
+       or (
+         m.status in ('played', 'completed')
+         and (m.black_score is null or m.white_score is null)
+       )
+     )
+   order by m.kickoff_at;
+$$;
+
+revoke all on function public.unresolved_matches() from public;
+grant execute on function public.unresolved_matches() to authenticated;
+
+-- Bildirim bayragi da ayni tanimi kullanir; yoksa skorsuz hafta icin mail
+-- gonderilir ama bayrak kapanmaz, her gun yeniden gonderilirdi.
+create or replace function public.claim_unresolved_notice(p_match_id uuid)
+returns boolean
+language plpgsql security definer set search_path = public as $$
+declare
+  v_claimed uuid;
+begin
+  if not is_active_member() then
+    return false;
+  end if;
+
+  update matches
+     set unresolved_notified_at = now()
+   where id = p_match_id
+     and unresolved_notified_at is null
+     and kickoff_at < now()
+     and (
+       status in ('poll_open', 'squad_locked')
+       or (
+         status in ('played', 'completed')
+         and (black_score is null or white_score is null)
+       )
+     )
+  returning id into v_claimed;
+
+  return v_claimed is not null;
+end;
+$$;
+
+revoke all on function public.claim_unresolved_notice(uuid) from public;
+grant execute on function public.claim_unresolved_notice(uuid) to authenticated;
+
+-- Bayrak yalnizca hafta gercekten sonuclaninca temizlenir: iptal, ya da skoru
+-- girilmis oynandi/tamamlandi. Skorsuz 'played' artik bayragi sifirlamaz.
+create or replace function public.tg_clear_unresolved_notice()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'cancelled'
+     or (
+       new.status in ('played', 'completed')
+       and new.black_score is not null
+       and new.white_score is not null
+     ) then
+    new.unresolved_notified_at := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists matches_clear_unresolved_notice on matches;
+create trigger matches_clear_unresolved_notice
+  before update on matches
+  for each row
+  execute function public.tg_clear_unresolved_notice();
